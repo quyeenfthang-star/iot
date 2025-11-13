@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Serverless
+.serverless/
+.serverless_plugins/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Certificates and Keys
+*.pem
+*.key
+*.crt
+*.der
+*.p12
+claim-cert.pem
+claim-private-key.pem
+claim-public-key.pem
+device-cert.pem
+device-key.pem
+AmazonRootCA1.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+dist/
+build/
+*.zip
+
+# Test
+coverage/
+.nyc_output/
+
+# Misc
+.cache/
+tmp/
+temp/
