@@ -17,7 +17,10 @@ provider:
     DEVICE_TABLE: ${self:custom.deviceTable}
     SHADOW_HISTORY_TABLE: ${self:custom.shadowHistoryTable}
     PROVISIONING_LOGS_TABLE: ${self:custom.provisioningLogsTable}
+    FLEET_ANALYTICS_TABLE: ${self:custom.fleetAnalyticsTable}
+    GREENGRASS_DEPLOYMENTS_TABLE: ${self:custom.greengrassDeploymentsTable}
     IOT_ENDPOINT: !GetAtt IotEndpoint.endpointAddress
+    SNS_ALERT_TOPIC_ARN: !Ref DeviceAlertTopic
 
   # IAM Role for Lambda functions
   iam:
@@ -36,8 +39,12 @@ provider:
             - !GetAtt DeviceRegistryTable.Arn
             - !GetAtt ShadowHistoryTable.Arn
             - !GetAtt ProvisioningLogsTable.Arn
+            - !GetAtt FleetAnalyticsTable.Arn
+            - !GetAtt GreengrassDeploymentsTable.Arn
             - !Sub '${DeviceRegistryTable.Arn}/index/*'
             - !Sub '${ShadowHistoryTable.Arn}/index/*'
+            - !Sub '${FleetAnalyticsTable.Arn}/index/*'
+            - !Sub '${GreengrassDeploymentsTable.Arn}/index/*'
 
         # IoT permissions
         - Effect: Allow
@@ -70,11 +77,34 @@ provider:
             - logs:PutLogEvents
           Resource: '*'
 
+        # SNS permissions
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: !Ref DeviceAlertTopic
+
+        # Greengrass permissions
+        - Effect: Allow
+          Action:
+            - greengrass:CreateDeployment
+            - greengrass:GetDeployment
+            - greengrass:ListDeployments
+            - greengrass:CancelDeployment
+            - greengrass:GetCoreDevice
+            - greengrass:ListCoreDevices
+            - greengrass:GetComponent
+            - greengrass:ListComponents
+            - greengrass:ListInstalledComponents
+            - greengrass:ListEffectiveDeployments
+          Resource: '*'
+
 custom:
   # Table names
   deviceTable: ${self:service}-devices-${self:provider.stage}
   shadowHistoryTable: ${self:service}-shadow-history-${self:provider.stage}
   provisioningLogsTable: ${self:service}-provisioning-logs-${self:provider.stage}
+  fleetAnalyticsTable: ${self:service}-fleet-analytics-${self:provider.stage}
+  greengrassDeploymentsTable: ${self:service}-greengrass-deployments-${self:provider.stage}
 
   # Fleet Provisioning
   provisioningTemplateName: ${self:service}-template-${self:provider.stage}
@@ -177,6 +207,85 @@ functions:
           method: get
           cors: true
 
+  # Fleet Analytics Functions
+  fleetAnalyticsAggregator:
+    handler: src/handlers/analytics/fleetAnalyticsAggregator.handler
+    description: Aggregates fleet metrics from device stream
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt DeviceRegistryTable.StreamArn
+          batchSize: 10
+          startingPosition: LATEST
+          maximumRetryAttempts: 3
+
+  getFleetAnalytics:
+    handler: src/handlers/api/getFleetAnalytics.handler
+    description: Gets fleet-wide analytics
+    events:
+      - http:
+          path: /analytics/fleet
+          method: get
+          cors: true
+
+  getDeviceMetrics:
+    handler: src/handlers/api/getDeviceMetrics.handler
+    description: Gets metrics for specific device
+    events:
+      - http:
+          path: /analytics/devices/{deviceId}/metrics
+          method: get
+          cors: true
+
+  # SNS Alert Functions
+  deviceAlertHandler:
+    handler: src/handlers/alerts/deviceAlertHandler.handler
+    description: Processes device alerts and sends SNS notifications
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt ShadowHistoryTable.StreamArn
+          batchSize: 10
+          startingPosition: LATEST
+          maximumRetryAttempts: 3
+
+  # Greengrass Deployment Functions
+  createGreengrassDeployment:
+    handler: src/handlers/greengrass/createDeployment.handler
+    description: Creates a new Greengrass deployment
+    events:
+      - http:
+          path: /greengrass/deployments
+          method: post
+          cors: true
+
+  getGreengrassDeployment:
+    handler: src/handlers/greengrass/getDeployment.handler
+    description: Gets Greengrass deployment status
+    events:
+      - http:
+          path: /greengrass/deployments/{deploymentId}
+          method: get
+          cors: true
+
+  listGreengrassDeployments:
+    handler: src/handlers/greengrass/listDeployments.handler
+    description: Lists all Greengrass deployments
+    events:
+      - http:
+          path: /greengrass/deployments
+          method: get
+          cors: true
+
+  cancelGreengrassDeployment:
+    handler: src/handlers/greengrass/cancelDeployment.handler
+    description: Cancels a Greengrass deployment
+    events:
+      - http:
+          path: /greengrass/deployments/{deploymentId}
+          method: delete
+          cors: true
+
 resources:
   Resources:
     # DynamoDB Tables
@@ -231,6 +340,8 @@ resources:
             KeyType: HASH
           - AttributeName: timestamp
             KeyType: RANGE
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
         TimeToLiveSpecification:
           AttributeName: ttl
           Enabled: true
@@ -269,6 +380,85 @@ resources:
         TimeToLiveSpecification:
           AttributeName: ttl
           Enabled: true
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    FleetAnalyticsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.fleetAnalyticsTable}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: metricId
+            AttributeType: S
+          - AttributeName: timestamp
+            AttributeType: N
+          - AttributeName: metricType
+            AttributeType: S
+        KeySchema:
+          - AttributeName: metricId
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: metricType-timestamp-index
+            KeySchema:
+              - AttributeName: metricType
+                KeyType: HASH
+              - AttributeName: timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    GreengrassDeploymentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.greengrassDeploymentsTable}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: deploymentId
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: N
+          - AttributeName: status
+            AttributeType: S
+        KeySchema:
+          - AttributeName: deploymentId
+            KeyType: HASH
+          - AttributeName: createdAt
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: status-createdAt-index
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    # SNS Topic for Device Alerts
+    DeviceAlertTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:service}-device-alerts-${self:provider.stage}
+        DisplayName: IoT Device Alert Notifications
         Tags:
           - Key: Service
             Value: ${self:service}
@@ -588,6 +778,24 @@ resources:
       Value: !Sub 'https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${self:provider.stage}'
       Export:
         Name: ${self:service}-${self:provider.stage}-ApiEndpoint
+
+    FleetAnalyticsTableName:
+      Description: Fleet Analytics DynamoDB Table
+      Value: !Ref FleetAnalyticsTable
+      Export:
+        Name: ${self:service}-${self:provider.stage}-FleetAnalyticsTable
+
+    GreengrassDeploymentsTableName:
+      Description: Greengrass Deployments DynamoDB Table
+      Value: !Ref GreengrassDeploymentsTable
+      Export:
+        Name: ${self:service}-${self:provider.stage}-GreengrassDeploymentsTable
+
+    DeviceAlertTopicArn:
+      Description: SNS Topic ARN for Device Alerts
+      Value: !Ref DeviceAlertTopic
+      Export:
+        Name: ${self:service}-${self:provider.stage}-DeviceAlertTopic
 
 plugins:
   - serverless-offline

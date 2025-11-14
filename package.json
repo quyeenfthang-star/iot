@@ -19,14 +19,19 @@
     "iot",
     "shadow",
     "fleet-provisioning",
+    "greengrass",
+    "fleet-analytics",
+    "sns-alerts",
     "serverless"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.450.0",
+    "@aws-sdk/client-greengrassv2": "^3.450.0",
     "@aws-sdk/client-iot": "^3.450.0",
     "@aws-sdk/client-iot-data-plane": "^3.450.0",
+    "@aws-sdk/client-sns": "^3.450.0",
     "@aws-sdk/lib-dynamodb": "^3.450.0",
     "uuid": "^9.0.1"
   },
