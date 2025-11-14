@@ -1,8 +1,14 @@
 # AWS IoT Shadow Management with Fleet Provisioning
 
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/your-repo/iot)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18.x-brightgreen.svg)](https://nodejs.org/)
+[![Serverless](https://img.shields.io/badge/serverless-%3E%3D3.x-orange.svg)](https://www.serverless.com/)
+[![AWS](https://img.shields.io/badge/AWS-IoT%20Core-yellow.svg)](https://aws.amazon.com/iot-core/)
+
 A complete serverless solution for managing IoT devices using AWS IoT Device Shadows and Fleet Provisioning.
 
-## Overview
+## 🎯 Overview
 
 This project provides a production-ready infrastructure for:
 
@@ -12,7 +18,44 @@ This project provides a production-ready infrastructure for:
 - **Telemetry & History**: Track device shadow updates over time
 - **Security**: Certificate-based authentication and fine-grained policies
 
-## Architecture
+## ✨ Key Features
+
+- 🚀 **Automated Device Provisioning**: Fleet Provisioning with pre-validation hooks
+- 📊 **Real-time Shadow Sync**: Bidirectional state synchronization
+- 🔒 **Certificate-based Security**: X.509 certificates with fine-grained policies
+- 📡 **Multiple Device Types**: Support for Sensors, Gateways, and Actuators
+- 📈 **Shadow History**: Time-series tracking with 90-day retention
+- 🌐 **REST API**: Complete device management endpoints
+- 🔄 **Delta Processing**: Efficient state change notifications
+- 📦 **Serverless Architecture**: Scalable and cost-effective
+- 🛡️ **Production-ready**: Security best practices and monitoring
+- 🐍 **Multi-language Clients**: Python and Node.js device examples
+
+## 🚀 Quick Start
+
+```bash
+# Clone and install
+git clone <repository-url>
+cd iot
+npm install
+
+# Deploy to AWS
+npm run deploy:dev
+
+# Create claim certificate and start provisioning devices
+# See detailed instructions in the Deployment section below
+```
+
+## 📚 Documentation
+
+- **[README.md](./README.md)** - This file, overview and usage guide
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - System architecture and diagrams
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Step-by-step deployment guide
+- **[COMPONENTS.md](./COMPONENTS.md)** - Detailed component descriptions
+- **[CHANGELOG.md](./CHANGELOG.md)** - Version history and release notes
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Contribution guidelines
+
+## 📋 Architecture
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture diagrams and component interactions.
 
@@ -442,19 +485,49 @@ serverless remove --stage dev --region us-east-1
 
 **Note**: This will delete all DynamoDB tables and data. Export important data before removal.
 
-## Contributing
+## 🤝 Contributing
+
+We welcome contributions! Please see our [CONTRIBUTING.md](./CONTRIBUTING.md) for details on:
+
+- Code of conduct
+- Development setup
+- Coding standards
+- Pull request process
+- Reporting bugs
+- Suggesting enhancements
+
+Quick contribution steps:
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes following our coding standards
 4. Test thoroughly
-5. Submit a pull request
+5. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
-## License
+## 📝 Changelog
 
-MIT
+See [CHANGELOG.md](./CHANGELOG.md) for a detailed history of changes, new features, and bug fixes.
 
-## Support
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+This project uses the following AWS services and open-source tools:
+
+- **AWS IoT Core** - Device connectivity and shadow management
+- **AWS Lambda** - Serverless compute for handlers
+- **AWS DynamoDB** - Device registry and shadow history storage
+- **AWS API Gateway** - REST API endpoints
+- **Serverless Framework** - Infrastructure as Code
+- **AWS IoT Device SDK** - Device client libraries
+
+Special thanks to the AWS IoT and Serverless communities for their excellent documentation and examples.
+
+## 📞 Support
 
 For issues and questions:
 
