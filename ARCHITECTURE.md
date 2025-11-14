@@ -75,9 +75,18 @@
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                         THING REGISTRY                                 │ │
 │  │                                                                         │ │
-│  │  Thing Types: [Sensor, Gateway, Actuator]                             │ │
-│  │  Thing Groups: /production/region-1/sensors                            │ │
-│  │  Attributes: {model, version, location, capabilities}                  │ │
+│  │  Dynamic Thing Type Management via API:                                │ │
+│  │  - Create/List/Get/Delete Thing Types dynamically                      │ │
+│  │  - Custom searchable attributes per type                               │ │
+│  │  - Tag-based organization and cost allocation                          │ │
+│  │                                                                         │ │
+│  │  Dynamic Thing Group Management via API:                               │ │
+│  │  - Hierarchical group structure (parent-child)                         │ │
+│  │  - Create/List/Get/Delete groups on-demand                            │ │
+│  │  - Add/Remove things to/from groups dynamically                        │ │
+│  │  - Attribute payloads for metadata                                     │ │
+│  │                                                                         │ │
+│  │  Example Hierarchy: production → us-east-1 → sensors → temperature    │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 └──────────────────┬───────────────────────────┬───────────────────────────────┘
                    │                           │
@@ -174,6 +183,55 @@
 │  │  - Track deployment status                                             │ │
 │  │  - Cancel active deployments                                           │ │
 │  │  - Policy-based rollback/failure handling                             │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              DYNAMIC THING TYPE & GROUP MANAGEMENT                           │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │                      Thing Type Management                             │ │
+│  │                                                                         │ │
+│  │  REST API Operations:                                                  │ │
+│  │  - POST /thing-types           → Create new type                       │ │
+│  │  - GET /thing-types            → List all types                        │ │
+│  │  - GET /thing-types/{name}     → Get type details                      │ │
+│  │  - DELETE /thing-types/{name}  → Delete type (auto-deprecate)         │ │
+│  │                                                                         │ │
+│  │  Features:                                                             │ │
+│  │  - Searchable attributes (model, location, firmware)                   │ │
+│  │  - Tag-based organization (cost allocation, filtering)                │ │
+│  │  - Automatic deprecation before deletion                               │ │
+│  │  - Name validation and format checking                                 │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │                      Thing Group Management                            │ │
+│  │                                                                         │ │
+│  │  REST API Operations:                                                  │ │
+│  │  - POST /thing-groups                → Create new group                │ │
+│  │  - GET /thing-groups                 → List all groups                 │ │
+│  │  - GET /thing-groups/{name}          → Get group details               │ │
+│  │  - DELETE /thing-groups/{name}       → Delete group (safety checks)    │ │
+│  │  - PUT /thing-groups/{g}/things/{t}  → Add thing to group             │ │
+│  │  - DELETE /thing-groups/{g}/things/{t} → Remove from group            │ │
+│  │                                                                         │ │
+│  │  Features:                                                             │ │
+│  │  - Hierarchical structure (parent-child relationships)                │ │
+│  │  - Attribute payloads for metadata                                     │ │
+│  │  - Safety checks before deletion (empty group validation)             │ │
+│  │  - Force delete option for emergency scenarios                         │ │
+│  │  - Override dynamic group assignments                                  │ │
+│  │                                                                         │ │
+│  │  Example Hierarchy:                                                    │ │
+│  │    production/                                                         │ │
+│  │    ├── us-east-1/                                                     │ │
+│  │    │   ├── sensors/                                                   │ │
+│  │    │   │   ├── temperature-sensors                                    │ │
+│  │    │   │   └── humidity-sensors                                       │ │
+│  │    │   └── gateways/                                                  │ │
+│  │    └── eu-west-1/                                                     │ │
+│  │        └── sensors/                                                   │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -369,6 +427,80 @@
      │                    │                    │                    │
      │ 5. Response        │                    │ 6. Deploy to       │
      │◀───────────────────┤                    │    Devices         │
+     │                    │                    │                    │
+```
+
+### 7. Dynamic Thing Type Creation Flow
+
+```
+┌─────────┐          ┌─────────┐         ┌──────────┐         ┌─────────┐
+│   API   │          │ Lambda  │         │   IoT   │          │  Tags   │
+│ Request │          │         │         │  Core   │          │Metadata │
+└────┬────┘          └────┬────┘         └────┬─────┘         └────┬────┘
+     │                    │                    │                    │
+     │ 1. Create Thing    │                    │                    │
+     │    Type Request    │                    │                    │
+     │    {name, attrs,   │                    │                    │
+     │     searchable,    │                    │                    │
+     │     tags}          │                    │                    │
+     ├───────────────────▶│                    │                    │
+     │                    │                    │                    │
+     │                    │ 2. Validate Name   │                    │
+     │                    │    & Format        │                    │
+     │                    │                    │                    │
+     │                    │ 3. Create in IoT   │                    │
+     │                    ├───────────────────▶│                    │
+     │                    │                    │                    │
+     │                    │ 4. Apply Tags      │                    │
+     │                    ├────────────────────────────────────────▶│
+     │                    │                    │                    │
+     │                    │ 5. Thing Type ARN  │                    │
+     │                    │◀───────────────────┤                    │
+     │                    │                    │                    │
+     │ 6. Response with   │                    │                    │
+     │    Type ID & ARN   │                    │                    │
+     │◀───────────────────┤                    │                    │
+     │                    │                    │                    │
+```
+
+### 8. Dynamic Thing Group Creation Flow
+
+```
+┌─────────┐          ┌─────────┐         ┌──────────┐         ┌─────────┐
+│   API   │          │ Lambda  │         │   IoT   │          │  Thing  │
+│ Request │          │         │         │  Core   │          │ Members │
+└────┬────┘          └────┬────┘         └────┬─────┘         └────┬────┘
+     │                    │                    │                    │
+     │ 1. Create Group    │                    │                    │
+     │    Request         │                    │                    │
+     │    {name, parent,  │                    │                    │
+     │     attributes}    │                    │                    │
+     ├───────────────────▶│                    │                    │
+     │                    │                    │                    │
+     │                    │ 2. Validate        │                    │
+     │                    │    Parent Exists   │                    │
+     │                    │    (if specified)  │                    │
+     │                    │                    │                    │
+     │                    │ 3. Create Group    │                    │
+     │                    ├───────────────────▶│                    │
+     │                    │                    │                    │
+     │                    │ 4. Group ARN & ID  │                    │
+     │                    │◀───────────────────┤                    │
+     │                    │                    │                    │
+     │ 5. Response        │                    │                    │
+     │◀───────────────────┤                    │                    │
+     │                    │                    │                    │
+     │                    │                    │ 6. Add Things      │
+     │                    │                    │    (optional)      │
+     │ 7. Add Thing to    │                    │                    │
+     │    Group Request   │                    │                    │
+     ├───────────────────▶│                    │                    │
+     │                    │                    │                    │
+     │                    │ 8. Add to Group    │                    │
+     │                    ├───────────────────────────────────────▶│
+     │                    │                    │                    │
+     │ 9. Success         │                    │                    │
+     │◀───────────────────┤                    │                    │
      │                    │                    │                    │
 ```
 
