@@ -1,0 +1,261 @@
+# Lambda Functions
+
+# Fleet Provisioning Pre-Hook
+preProvisioningHook:
+  handler: src/handlers/provisioning/preProvisioningHook.handler
+  description: Validates device before provisioning
+  events:
+    - iot:
+        sql: "SELECT * FROM '$aws/provisioning-templates/${self:custom.provisioningTemplateName}/provision/json'"
+        enabled: true
+  environment:
+    PROVISIONING_TEMPLATE: ${self:custom.provisioningTemplateName}
+
+# Fleet Provisioning Post-Hook (optional)
+postProvisioningHook:
+  handler: src/handlers/provisioning/postProvisioningHook.handler
+  description: Performs actions after successful provisioning
+  environment:
+    PROVISIONING_TEMPLATE: ${self:custom.provisioningTemplateName}
+
+# Shadow Update Handler
+shadowUpdateHandler:
+  handler: src/handlers/shadow/shadowUpdateHandler.handler
+  description: Processes shadow update events
+  events:
+    - iot:
+        sql: "SELECT *, topic(3) as thingName FROM '$aws/things/+/shadow/update/accepted'"
+        enabled: true
+    - iot:
+        sql: "SELECT *, topic(3) as thingName, topic(5) as shadowName FROM '$aws/things/+/shadow/name/+/update/accepted'"
+        enabled: true
+
+# Shadow Delta Handler
+shadowDeltaHandler:
+  handler: src/handlers/shadow/shadowDeltaHandler.handler
+  description: Processes shadow delta events
+  events:
+    - iot:
+        sql: "SELECT *, topic(3) as thingName FROM '$aws/things/+/shadow/update/delta'"
+        enabled: true
+
+# Device Management API
+createDevice:
+  handler: src/handlers/api/createDevice.handler
+  description: Creates a new device manually (non-provisioning)
+  events:
+    - http:
+        path: /devices
+        method: post
+        cors: true
+
+getDevice:
+  handler: src/handlers/api/getDevice.handler
+  description: Gets device information
+  events:
+    - http:
+        path: /devices/{deviceId}
+        method: get
+        cors: true
+
+listDevices:
+  handler: src/handlers/api/listDevices.handler
+  description: Lists all devices
+  events:
+    - http:
+        path: /devices
+        method: get
+        cors: true
+
+updateDeviceShadow:
+  handler: src/handlers/api/updateDeviceShadow.handler
+  description: Updates device shadow from API
+  events:
+    - http:
+        path: /devices/{deviceId}/shadow
+        method: put
+        cors: true
+
+getDeviceShadow:
+  handler: src/handlers/api/getDeviceShadow.handler
+  description: Gets device shadow
+  events:
+    - http:
+        path: /devices/{deviceId}/shadow
+        method: get
+        cors: true
+
+getShadowHistory:
+  handler: src/handlers/api/getShadowHistory.handler
+  description: Gets shadow update history
+  events:
+    - http:
+        path: /devices/{deviceId}/shadow/history
+        method: get
+        cors: true
+
+# Fleet Analytics Functions
+fleetAnalyticsAggregator:
+  handler: src/handlers/analytics/fleetAnalyticsAggregator.handler
+  description: Aggregates fleet metrics from device stream
+  events:
+    - stream:
+        type: dynamodb
+        arn: !GetAtt DeviceRegistryTable.StreamArn
+        batchSize: 10
+        startingPosition: LATEST
+        maximumRetryAttempts: 3
+
+getFleetAnalytics:
+  handler: src/handlers/api/getFleetAnalytics.handler
+  description: Gets fleet-wide analytics
+  events:
+    - http:
+        path: /analytics/fleet
+        method: get
+        cors: true
+
+getDeviceMetrics:
+  handler: src/handlers/api/getDeviceMetrics.handler
+  description: Gets metrics for specific device
+  events:
+    - http:
+        path: /analytics/devices/{deviceId}/metrics
+        method: get
+        cors: true
+
+# SNS Alert Functions
+deviceAlertHandler:
+  handler: src/handlers/alerts/deviceAlertHandler.handler
+  description: Processes device alerts and sends SNS notifications
+  events:
+    - stream:
+        type: dynamodb
+        arn: !GetAtt ShadowHistoryTable.StreamArn
+        batchSize: 10
+        startingPosition: LATEST
+        maximumRetryAttempts: 3
+
+# Greengrass Deployment Functions
+createGreengrassDeployment:
+  handler: src/handlers/greengrass/createDeployment.handler
+  description: Creates a new Greengrass deployment
+  events:
+    - http:
+        path: /greengrass/deployments
+        method: post
+        cors: true
+
+getGreengrassDeployment:
+  handler: src/handlers/greengrass/getDeployment.handler
+  description: Gets Greengrass deployment status
+  events:
+    - http:
+        path: /greengrass/deployments/{deploymentId}
+        method: get
+        cors: true
+
+listGreengrassDeployments:
+  handler: src/handlers/greengrass/listDeployments.handler
+  description: Lists all Greengrass deployments
+  events:
+    - http:
+        path: /greengrass/deployments
+        method: get
+        cors: true
+
+cancelGreengrassDeployment:
+  handler: src/handlers/greengrass/cancelDeployment.handler
+  description: Cancels a Greengrass deployment
+  events:
+    - http:
+        path: /greengrass/deployments/{deploymentId}
+        method: delete
+        cors: true
+
+# Thing Type Management Functions
+createThingType:
+  handler: src/handlers/thing-types/createThingType.handler
+  description: Creates a new Thing Type dynamically
+  events:
+    - http:
+        path: /thing-types
+        method: post
+        cors: true
+
+listThingTypes:
+  handler: src/handlers/thing-types/listThingTypes.handler
+  description: Lists all Thing Types
+  events:
+    - http:
+        path: /thing-types
+        method: get
+        cors: true
+
+getThingType:
+  handler: src/handlers/thing-types/getThingType.handler
+  description: Gets Thing Type details
+  events:
+    - http:
+        path: /thing-types/{thingTypeName}
+        method: get
+        cors: true
+
+deleteThingType:
+  handler: src/handlers/thing-types/deleteThingType.handler
+  description: Deletes a Thing Type
+  events:
+    - http:
+        path: /thing-types/{thingTypeName}
+        method: delete
+        cors: true
+
+# Thing Group Management Functions
+createThingGroup:
+  handler: src/handlers/thing-groups/createThingGroup.handler
+  description: Creates a new Thing Group dynamically
+  events:
+    - http:
+        path: /thing-groups
+        method: post
+        cors: true
+
+listThingGroups:
+  handler: src/handlers/thing-groups/listThingGroups.handler
+  description: Lists all Thing Groups
+  events:
+    - http:
+        path: /thing-groups
+        method: get
+        cors: true
+
+getThingGroup:
+  handler: src/handlers/thing-groups/getThingGroup.handler
+  description: Gets Thing Group details
+  events:
+    - http:
+        path: /thing-groups/{thingGroupName}
+        method: get
+        cors: true
+
+deleteThingGroup:
+  handler: src/handlers/thing-groups/deleteThingGroup.handler
+  description: Deletes a Thing Group
+  events:
+    - http:
+        path: /thing-groups/{thingGroupName}
+        method: delete
+        cors: true
+
+addThingToGroup:
+  handler: src/handlers/thing-groups/addThingToGroup.handler
+  description: Adds or removes a thing from a thing group
+  events:
+    - http:
+        path: /thing-groups/{thingGroupName}/things/{thingName}
+        method: put
+        cors: true
+    - http:
+        path: /thing-groups/{thingGroupName}/things/{thingName}
+        method: delete
+        cors: true

@@ -1,0 +1,165 @@
+# DynamoDB Tables
+
+DeviceRegistryTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: ${self:custom.deviceTable}
+    BillingMode: PAY_PER_REQUEST
+    AttributeDefinitions:
+      - AttributeName: deviceId
+        AttributeType: S
+      - AttributeName: thingName
+        AttributeType: S
+      - AttributeName: status
+        AttributeType: S
+    KeySchema:
+      - AttributeName: deviceId
+        KeyType: HASH
+    GlobalSecondaryIndexes:
+      - IndexName: thingName-index
+        KeySchema:
+          - AttributeName: thingName
+            KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+      - IndexName: status-index
+        KeySchema:
+          - AttributeName: status
+            KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+    StreamSpecification:
+      StreamViewType: NEW_AND_OLD_IMAGES
+    Tags:
+      - Key: Service
+        Value: ${self:service}
+      - Key: Stage
+        Value: ${self:provider.stage}
+
+ShadowHistoryTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: ${self:custom.shadowHistoryTable}
+    BillingMode: PAY_PER_REQUEST
+    AttributeDefinitions:
+      - AttributeName: thingName
+        AttributeType: S
+      - AttributeName: timestamp
+        AttributeType: N
+    KeySchema:
+      - AttributeName: thingName
+        KeyType: HASH
+      - AttributeName: timestamp
+        KeyType: RANGE
+    StreamSpecification:
+      StreamViewType: NEW_AND_OLD_IMAGES
+    TimeToLiveSpecification:
+      AttributeName: ttl
+      Enabled: true
+    Tags:
+      - Key: Service
+        Value: ${self:service}
+      - Key: Stage
+        Value: ${self:provider.stage}
+
+ProvisioningLogsTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: ${self:custom.provisioningLogsTable}
+    BillingMode: PAY_PER_REQUEST
+    AttributeDefinitions:
+      - AttributeName: requestId
+        AttributeType: S
+      - AttributeName: timestamp
+        AttributeType: N
+      - AttributeName: deviceId
+        AttributeType: S
+    KeySchema:
+      - AttributeName: requestId
+        KeyType: HASH
+      - AttributeName: timestamp
+        KeyType: RANGE
+    GlobalSecondaryIndexes:
+      - IndexName: deviceId-index
+        KeySchema:
+          - AttributeName: deviceId
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+    TimeToLiveSpecification:
+      AttributeName: ttl
+      Enabled: true
+    Tags:
+      - Key: Service
+        Value: ${self:service}
+      - Key: Stage
+        Value: ${self:provider.stage}
+
+FleetAnalyticsTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: ${self:custom.fleetAnalyticsTable}
+    BillingMode: PAY_PER_REQUEST
+    AttributeDefinitions:
+      - AttributeName: metricId
+        AttributeType: S
+      - AttributeName: timestamp
+        AttributeType: N
+      - AttributeName: metricType
+        AttributeType: S
+    KeySchema:
+      - AttributeName: metricId
+        KeyType: HASH
+      - AttributeName: timestamp
+        KeyType: RANGE
+    GlobalSecondaryIndexes:
+      - IndexName: metricType-timestamp-index
+        KeySchema:
+          - AttributeName: metricType
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+    TimeToLiveSpecification:
+      AttributeName: ttl
+      Enabled: true
+    Tags:
+      - Key: Service
+        Value: ${self:service}
+      - Key: Stage
+        Value: ${self:provider.stage}
+
+GreengrassDeploymentsTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: ${self:custom.greengrassDeploymentsTable}
+    BillingMode: PAY_PER_REQUEST
+    AttributeDefinitions:
+      - AttributeName: deploymentId
+        AttributeType: S
+      - AttributeName: createdAt
+        AttributeType: N
+      - AttributeName: status
+        AttributeType: S
+    KeySchema:
+      - AttributeName: deploymentId
+        KeyType: HASH
+      - AttributeName: createdAt
+        KeyType: RANGE
+    GlobalSecondaryIndexes:
+      - IndexName: status-createdAt-index
+        KeySchema:
+          - AttributeName: status
+            KeyType: HASH
+          - AttributeName: createdAt
+            KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+    Tags:
+      - Key: Service
+        Value: ${self:service}
+      - Key: Stage
+        Value: ${self:provider.stage}

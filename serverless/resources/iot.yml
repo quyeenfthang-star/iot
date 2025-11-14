@@ -1,0 +1,272 @@
+# IoT Core Resources
+
+# IoT Provisioning Role
+ProvisioningRole:
+  Type: AWS::IAM::Role
+  Properties:
+    RoleName: ${self:custom.provisioningRoleName}
+    AssumeRolePolicyDocument:
+      Version: '2012-10-17'
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service: iot.amazonaws.com
+          Action: sts:AssumeRole
+    ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSIoTThingsRegistration
+    Policies:
+      - PolicyName: ProvisioningPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - iot:CreateThing
+                - iot:CreateCertificateFromCsr
+                - iot:AttachThingPrincipal
+                - iot:AttachPolicy
+                - iot:DescribeCertificate
+                - iot:UpdateCertificate
+              Resource: '*'
+
+# Claim Certificate Policy (used before provisioning)
+ClaimCertificatePolicy:
+  Type: AWS::IoT::Policy
+  Properties:
+    PolicyName: ${self:custom.claimPolicyName}
+    PolicyDocument:
+      Version: '2012-10-17'
+      Statement:
+        - Effect: Allow
+          Action:
+            - iot:Connect
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - iot:Publish
+          Resource:
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/$aws/certificates/create/json'
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/$aws/provisioning-templates/${self:custom.provisioningTemplateName}/provision/json'
+        - Effect: Allow
+          Action:
+            - iot:Receive
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - iot:Subscribe
+          Resource:
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/$aws/certificates/create/json/accepted'
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/$aws/certificates/create/json/rejected'
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/$aws/provisioning-templates/${self:custom.provisioningTemplateName}/provision/json/accepted'
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/$aws/provisioning-templates/${self:custom.provisioningTemplateName}/provision/json/rejected'
+
+# Device Policy (used after provisioning)
+DevicePolicy:
+  Type: AWS::IoT::Policy
+  Properties:
+    PolicyName: ${self:custom.devicePolicyName}
+    PolicyDocument:
+      Version: '2012-10-17'
+      Statement:
+        - Effect: Allow
+          Action:
+            - iot:Connect
+          Resource:
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:client/$${iot:Connection.Thing.ThingName}'
+        - Effect: Allow
+          Action:
+            - iot:Publish
+          Resource:
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/$aws/things/$${iot:Connection.Thing.ThingName}/shadow/*'
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/device/$${iot:Connection.Thing.ThingName}/*'
+        - Effect: Allow
+          Action:
+            - iot:Subscribe
+          Resource:
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/$aws/things/$${iot:Connection.Thing.ThingName}/shadow/*'
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/$aws/things/$${iot:Connection.Thing.ThingName}/jobs/*'
+        - Effect: Allow
+          Action:
+            - iot:Receive
+          Resource:
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/$aws/things/$${iot:Connection.Thing.ThingName}/shadow/*'
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/$aws/things/$${iot:Connection.Thing.ThingName}/jobs/*'
+        - Effect: Allow
+          Action:
+            - iot:UpdateThingShadow
+            - iot:GetThingShadow
+            - iot:DeleteThingShadow
+          Resource:
+            - !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:thing/$${iot:Connection.Thing.ThingName}'
+
+# Fleet Provisioning Template
+ProvisioningTemplate:
+  Type: AWS::IoT::ProvisioningTemplate
+  Properties:
+    TemplateName: ${self:custom.provisioningTemplateName}
+    Description: Fleet provisioning template for IoT devices
+    Enabled: true
+    ProvisioningRoleArn: !GetAtt ProvisioningRole.Arn
+    PreProvisioningHook:
+      TargetArn: !GetAtt PreProvisioningHookLambdaFunction.Arn
+      PayloadVersion: '2020-04-01'
+    TemplateBody: !Sub |
+      {
+        "Parameters": {
+          "SerialNumber": {
+            "Type": "String"
+          },
+          "DeviceType": {
+            "Type": "String"
+          },
+          "AWS::IoT::Certificate::Id": {
+            "Type": "String"
+          }
+        },
+        "Resources": {
+          "thing": {
+            "Type": "AWS::IoT::Thing",
+            "Properties": {
+              "ThingName": {
+                "Fn::Join": [
+                  "-",
+                  [
+                    {"Ref": "DeviceType"},
+                    {"Ref": "SerialNumber"}
+                  ]
+                ]
+              },
+              "AttributePayload": {
+                "serialNumber": {"Ref": "SerialNumber"},
+                "deviceType": {"Ref": "DeviceType"}
+              },
+              "ThingTypeName": {"Ref": "DeviceType"}
+            }
+          },
+          "certificate": {
+            "Type": "AWS::IoT::Certificate",
+            "Properties": {
+              "CertificateId": {"Ref": "AWS::IoT::Certificate::Id"},
+              "Status": "Active"
+            }
+          },
+          "policy": {
+            "Type": "AWS::IoT::Policy",
+            "Properties": {
+              "PolicyName": "${self:custom.devicePolicyName}"
+            }
+          }
+        }
+      }
+
+# Lambda Permission for IoT to invoke Pre-Provisioning Hook
+PreProvisioningHookPermission:
+  Type: AWS::Lambda::Permission
+  Properties:
+    FunctionName: !GetAtt PreProvisioningHookLambdaFunction.Arn
+    Action: lambda:InvokeFunction
+    Principal: iot.amazonaws.com
+    SourceArn: !GetAtt ProvisioningTemplate.TemplateArn
+
+# Thing Types (Default types for common devices)
+SensorThingType:
+  Type: AWS::IoT::ThingType
+  Properties:
+    ThingTypeName: Sensor
+    ThingTypeProperties:
+      ThingTypeDescription: IoT Sensor Device
+      SearchableAttributes:
+        - model
+        - location
+        - version
+
+GatewayThingType:
+  Type: AWS::IoT::ThingType
+  Properties:
+    ThingTypeName: Gateway
+    ThingTypeProperties:
+      ThingTypeDescription: IoT Gateway Device
+      SearchableAttributes:
+        - model
+        - location
+        - version
+
+ActuatorThingType:
+  Type: AWS::IoT::ThingType
+  Properties:
+    ThingTypeName: Actuator
+    ThingTypeProperties:
+      ThingTypeDescription: IoT Actuator Device
+      SearchableAttributes:
+        - model
+        - location
+        - version
+
+# Thing Groups (Default groups)
+ProductionThingGroup:
+  Type: AWS::IoT::ThingGroup
+  Properties:
+    ThingGroupName: production
+    ThingGroupProperties:
+      ThingGroupDescription: Production devices
+
+# Custom resource to get IoT endpoint
+IotEndpoint:
+  Type: Custom::IotEndpoint
+  Properties:
+    ServiceToken: !GetAtt GetIotEndpointFunction.Arn
+
+GetIotEndpointFunction:
+  Type: AWS::Lambda::Function
+  Properties:
+    FunctionName: ${self:service}-get-iot-endpoint-${self:provider.stage}
+    Runtime: nodejs18.x
+    Handler: index.handler
+    Role: !GetAtt GetIotEndpointFunctionRole.Arn
+    Code:
+      ZipFile: |
+        const { IoTClient, DescribeEndpointCommand } = require('@aws-sdk/client-iot');
+        const response = require('cfn-response');
+
+        exports.handler = async (event, context) => {
+          console.log('Event:', JSON.stringify(event, null, 2));
+
+          if (event.RequestType === 'Delete') {
+            await response.send(event, context, response.SUCCESS);
+            return;
+          }
+
+          try {
+            const iot = new IoTClient({});
+            const result = await iot.send(new DescribeEndpointCommand({ endpointType: 'iot:Data-ATS' }));
+
+            await response.send(event, context, response.SUCCESS, {
+              endpointAddress: result.endpointAddress
+            });
+          } catch (error) {
+            console.error('Error:', error);
+            await response.send(event, context, response.FAILED, { Error: error.message });
+          }
+        };
+
+GetIotEndpointFunctionRole:
+  Type: AWS::IAM::Role
+  Properties:
+    AssumeRolePolicyDocument:
+      Version: '2012-10-17'
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+    ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+    Policies:
+      - PolicyName: IotDescribeEndpoint
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - iot:DescribeEndpoint
+              Resource: '*'

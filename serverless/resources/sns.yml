@@ -1,0 +1,12 @@
+# SNS Resources
+
+DeviceAlertTopic:
+  Type: AWS::SNS::Topic
+  Properties:
+    TopicName: ${self:service}-device-alerts-${self:provider.stage}
+    DisplayName: IoT Device Alert Notifications
+    Tags:
+      - Key: Service
+        Value: ${self:service}
+      - Key: Stage
+        Value: ${self:provider.stage}

@@ -1,0 +1,61 @@
+# CloudFormation Outputs
+
+DeviceTableName:
+  Description: Device Registry DynamoDB Table
+  Value: !Ref DeviceRegistryTable
+  Export:
+    Name: ${self:service}-${self:provider.stage}-DeviceTable
+
+ShadowHistoryTableName:
+  Description: Shadow History DynamoDB Table
+  Value: !Ref ShadowHistoryTable
+  Export:
+    Name: ${self:service}-${self:provider.stage}-ShadowHistoryTable
+
+ProvisioningTemplateName:
+  Description: Fleet Provisioning Template Name
+  Value: ${self:custom.provisioningTemplateName}
+  Export:
+    Name: ${self:service}-${self:provider.stage}-ProvisioningTemplate
+
+ClaimPolicyName:
+  Description: Claim Certificate Policy Name
+  Value: !Ref ClaimCertificatePolicy
+  Export:
+    Name: ${self:service}-${self:provider.stage}-ClaimPolicy
+
+DevicePolicyName:
+  Description: Device Policy Name
+  Value: !Ref DevicePolicy
+  Export:
+    Name: ${self:service}-${self:provider.stage}-DevicePolicy
+
+IoTEndpoint:
+  Description: IoT Core Endpoint
+  Value: !GetAtt IotEndpoint.endpointAddress
+  Export:
+    Name: ${self:service}-${self:provider.stage}-IoTEndpoint
+
+ApiEndpoint:
+  Description: API Gateway Endpoint
+  Value: !Sub 'https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${self:provider.stage}'
+  Export:
+    Name: ${self:service}-${self:provider.stage}-ApiEndpoint
+
+FleetAnalyticsTableName:
+  Description: Fleet Analytics DynamoDB Table
+  Value: !Ref FleetAnalyticsTable
+  Export:
+    Name: ${self:service}-${self:provider.stage}-FleetAnalyticsTable
+
+GreengrassDeploymentsTableName:
+  Description: Greengrass Deployments DynamoDB Table
+  Value: !Ref GreengrassDeploymentsTable
+  Export:
+    Name: ${self:service}-${self:provider.stage}-GreengrassDeploymentsTable
+
+DeviceAlertTopicArn:
+  Description: SNS Topic ARN for Device Alerts
+  Value: !Ref DeviceAlertTopic
+  Export:
+    Name: ${self:service}-${self:provider.stage}-DeviceAlertTopic

@@ -1,0 +1,13 @@
+# Custom variables
+# Table names
+deviceTable: ${self:service}-devices-${self:provider.stage}
+shadowHistoryTable: ${self:service}-shadow-history-${self:provider.stage}
+provisioningLogsTable: ${self:service}-provisioning-logs-${self:provider.stage}
+fleetAnalyticsTable: ${self:service}-fleet-analytics-${self:provider.stage}
+greengrassDeploymentsTable: ${self:service}-greengrass-deployments-${self:provider.stage}
+
+# Fleet Provisioning
+provisioningTemplateName: ${self:service}-template-${self:provider.stage}
+provisioningRoleName: ${self:service}-provisioning-role-${self:provider.stage}
+claimPolicyName: ${self:service}-claim-policy-${self:provider.stage}
+devicePolicyName: ${self:service}-device-policy-${self:provider.stage}

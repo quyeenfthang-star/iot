@@ -1,0 +1,104 @@
+name: aws
+runtime: nodejs18.x
+region: ${opt:region, 'us-east-1'}
+stage: ${opt:stage, 'dev'}
+memorySize: 256
+timeout: 30
+
+# Environment variables for all functions
+environment:
+  STAGE: ${self:provider.stage}
+  REGION: ${self:provider.region}
+  DEVICE_TABLE: ${self:custom.deviceTable}
+  SHADOW_HISTORY_TABLE: ${self:custom.shadowHistoryTable}
+  PROVISIONING_LOGS_TABLE: ${self:custom.provisioningLogsTable}
+  FLEET_ANALYTICS_TABLE: ${self:custom.fleetAnalyticsTable}
+  GREENGRASS_DEPLOYMENTS_TABLE: ${self:custom.greengrassDeploymentsTable}
+  IOT_ENDPOINT: !GetAtt IotEndpoint.endpointAddress
+  SNS_ALERT_TOPIC_ARN: !Ref DeviceAlertTopic
+
+# IAM Role for Lambda functions
+iam:
+  role:
+    statements:
+      # DynamoDB permissions
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DeleteItem
+        Resource:
+          - !GetAtt DeviceRegistryTable.Arn
+          - !GetAtt ShadowHistoryTable.Arn
+          - !GetAtt ProvisioningLogsTable.Arn
+          - !GetAtt FleetAnalyticsTable.Arn
+          - !GetAtt GreengrassDeploymentsTable.Arn
+          - !Sub '${DeviceRegistryTable.Arn}/index/*'
+          - !Sub '${ShadowHistoryTable.Arn}/index/*'
+          - !Sub '${FleetAnalyticsTable.Arn}/index/*'
+          - !Sub '${GreengrassDeploymentsTable.Arn}/index/*'
+
+      # IoT permissions
+      - Effect: Allow
+        Action:
+          - iot:CreateThing
+          - iot:DescribeThing
+          - iot:UpdateThing
+          - iot:ListThings
+          - iot:CreateThingGroup
+          - iot:AddThingToThingGroup
+          - iot:RemoveThingFromThingGroup
+          - iot:ListThingGroups
+          - iot:ListThingsInThingGroup
+          - iot:DescribeThingGroup
+          - iot:DeleteThingGroup
+          - iot:UpdateThingGroup
+          - iot:CreateThingType
+          - iot:ListThingTypes
+          - iot:DescribeThingType
+          - iot:DeleteThingType
+          - iot:DeprecateThingType
+          - iot:UpdateThingShadow
+          - iot:GetThingShadow
+          - iot:DeleteThingShadow
+          - iot:ListThingShadows
+          - iot:Publish
+          - iot:AttachThingPrincipal
+          - iot:DetachThingPrincipal
+          - iot:AttachPolicy
+          - iot:DetachPolicy
+          - iot:CreatePolicy
+          - iot:CreateCertificateFromCsr
+        Resource: '*'
+
+      # CloudWatch Logs
+      - Effect: Allow
+        Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+        Resource: '*'
+
+      # SNS permissions
+      - Effect: Allow
+        Action:
+          - sns:Publish
+        Resource: !Ref DeviceAlertTopic
+
+      # Greengrass permissions
+      - Effect: Allow
+        Action:
+          - greengrass:CreateDeployment
+          - greengrass:GetDeployment
+          - greengrass:ListDeployments
+          - greengrass:CancelDeployment
+          - greengrass:GetCoreDevice
+          - greengrass:ListCoreDevices
+          - greengrass:GetComponent
+          - greengrass:ListComponents
+          - greengrass:ListInstalledComponents
+          - greengrass:ListEffectiveDeployments
+        Resource: '*'
