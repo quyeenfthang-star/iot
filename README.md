@@ -437,6 +437,122 @@ Alert types automatically detected:
 - **HIGH_CPU_USAGE**: CPU usage > 90%
 - **LOW_DISK_SPACE**: Disk usage > 90%
 
+### Thing Type Management (Dynamic)
+
+#### Create Thing Type
+
+```bash
+curl -X POST https://<api-endpoint>/dev/thing-types \
+  -H "Content-Type: application/json" \
+  -d '{
+    "thingTypeName": "CustomSensor",
+    "thingTypeDescription": "Custom sensor type for environmental monitoring",
+    "searchableAttributes": ["model", "location", "firmware_version"],
+    "tags": {
+      "Environment": "Production",
+      "Department": "Engineering"
+    }
+  }'
+```
+
+#### List Thing Types
+
+```bash
+# List all thing types
+curl https://<api-endpoint>/dev/thing-types
+
+# Filter by name
+curl "https://<api-endpoint>/dev/thing-types?thingTypeName=CustomSensor"
+
+# Pagination
+curl "https://<api-endpoint>/dev/thing-types?maxResults=10&nextToken=<token>"
+```
+
+#### Get Thing Type
+
+```bash
+curl https://<api-endpoint>/dev/thing-types/CustomSensor
+```
+
+#### Delete Thing Type
+
+```bash
+# Delete thing type (will deprecate first, then delete)
+curl -X DELETE https://<api-endpoint>/dev/thing-types/CustomSensor
+
+# Only deprecate (without deleting)
+curl -X DELETE "https://<api-endpoint>/dev/thing-types/CustomSensor?undoDeprecate=false"
+```
+
+### Thing Group Management (Dynamic)
+
+#### Create Thing Group
+
+```bash
+curl -X POST https://<api-endpoint>/dev/thing-groups \
+  -H "Content-Type: application/json" \
+  -d '{
+    "thingGroupName": "production-sensors",
+    "parentGroupName": "production",
+    "thingGroupDescription": "Production environment sensors",
+    "attributePayload": {
+      "attributes": {
+        "environment": "production",
+        "region": "us-east-1"
+      }
+    },
+    "tags": {
+      "Department": "Engineering",
+      "CostCenter": "12345"
+    }
+  }'
+```
+
+#### List Thing Groups
+
+```bash
+# List all thing groups
+curl https://<api-endpoint>/dev/thing-groups
+
+# Filter by parent group
+curl "https://<api-endpoint>/dev/thing-groups?parentGroup=production"
+
+# Filter by name prefix
+curl "https://<api-endpoint>/dev/thing-groups?namePrefixFilter=prod"
+```
+
+#### Get Thing Group
+
+```bash
+curl https://<api-endpoint>/dev/thing-groups/production-sensors
+```
+
+#### Add Thing to Group
+
+```bash
+curl -X PUT https://<api-endpoint>/dev/thing-groups/production-sensors/things/Sensor-ABC123 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "overrideDynamicGroups": false
+  }'
+```
+
+#### Remove Thing from Group
+
+```bash
+curl -X DELETE https://<api-endpoint>/dev/thing-groups/production-sensors/things/Sensor-ABC123
+```
+
+#### Delete Thing Group
+
+```bash
+# Delete thing group (must be empty)
+curl -X DELETE https://<api-endpoint>/dev/thing-groups/production-sensors
+
+# Force delete (even with things - dangerous!)
+curl -X DELETE "https://<api-endpoint>/dev/thing-groups/production-sensors?force=true"
+```
+
 ### AWS CLI Commands
 
 #### Update Shadow

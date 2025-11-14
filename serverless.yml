@@ -55,7 +55,17 @@ provider:
             - iot:ListThings
             - iot:CreateThingGroup
             - iot:AddThingToThingGroup
+            - iot:RemoveThingFromThingGroup
+            - iot:ListThingGroups
+            - iot:ListThingsInThingGroup
             - iot:DescribeThingGroup
+            - iot:DeleteThingGroup
+            - iot:UpdateThingGroup
+            - iot:CreateThingType
+            - iot:ListThingTypes
+            - iot:DescribeThingType
+            - iot:DeleteThingType
+            - iot:DeprecateThingType
             - iot:UpdateThingShadow
             - iot:GetThingShadow
             - iot:DeleteThingShadow
@@ -283,6 +293,93 @@ functions:
     events:
       - http:
           path: /greengrass/deployments/{deploymentId}
+          method: delete
+          cors: true
+
+  # Thing Type Management Functions
+  createThingType:
+    handler: src/handlers/thing-types/createThingType.handler
+    description: Creates a new Thing Type dynamically
+    events:
+      - http:
+          path: /thing-types
+          method: post
+          cors: true
+
+  listThingTypes:
+    handler: src/handlers/thing-types/listThingTypes.handler
+    description: Lists all Thing Types
+    events:
+      - http:
+          path: /thing-types
+          method: get
+          cors: true
+
+  getThingType:
+    handler: src/handlers/thing-types/getThingType.handler
+    description: Gets Thing Type details
+    events:
+      - http:
+          path: /thing-types/{thingTypeName}
+          method: get
+          cors: true
+
+  deleteThingType:
+    handler: src/handlers/thing-types/deleteThingType.handler
+    description: Deletes a Thing Type
+    events:
+      - http:
+          path: /thing-types/{thingTypeName}
+          method: delete
+          cors: true
+
+  # Thing Group Management Functions
+  createThingGroup:
+    handler: src/handlers/thing-groups/createThingGroup.handler
+    description: Creates a new Thing Group dynamically
+    events:
+      - http:
+          path: /thing-groups
+          method: post
+          cors: true
+
+  listThingGroups:
+    handler: src/handlers/thing-groups/listThingGroups.handler
+    description: Lists all Thing Groups
+    events:
+      - http:
+          path: /thing-groups
+          method: get
+          cors: true
+
+  getThingGroup:
+    handler: src/handlers/thing-groups/getThingGroup.handler
+    description: Gets Thing Group details
+    events:
+      - http:
+          path: /thing-groups/{thingGroupName}
+          method: get
+          cors: true
+
+  deleteThingGroup:
+    handler: src/handlers/thing-groups/deleteThingGroup.handler
+    description: Deletes a Thing Group
+    events:
+      - http:
+          path: /thing-groups/{thingGroupName}
+          method: delete
+          cors: true
+
+  addThingToGroup:
+    handler: src/handlers/thing-groups/addThingToGroup.handler
+    description: Adds or removes a thing from a thing group
+    events:
+      - http:
+          path: /thing-groups/{thingGroupName}/things/{thingName}
+          method: put
+          cors: true
+      - http:
+          path: /thing-groups/{thingGroupName}/things/{thingName}
           method: delete
           cors: true
 
