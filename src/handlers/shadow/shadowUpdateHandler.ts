@@ -1,11 +1,31 @@
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, PutCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const SHADOW_HISTORY_TABLE = process.env.SHADOW_HISTORY_TABLE;
-const DEVICE_TABLE = process.env.DEVICE_TABLE;
+const SHADOW_HISTORY_TABLE = process.env.SHADOW_HISTORY_TABLE!;
+const DEVICE_TABLE = process.env.DEVICE_TABLE!;
+
+interface ShadowUpdateEvent {
+  thingName?: string;
+  topic?: string;
+  shadowName?: string;
+  state?: ShadowState;
+  metadata?: any;
+  version?: number;
+  timestamp?: number;
+}
+
+interface ShadowState {
+  reported?: Record<string, any>;
+  desired?: Record<string, any>;
+}
+
+interface ShadowUpdateResponse {
+  statusCode: number;
+  body: string;
+}
 
 /**
  * Shadow Update Handler Lambda Function
@@ -18,10 +38,8 @@ const DEVICE_TABLE = process.env.DEVICE_TABLE;
  * 2. Process business logic based on shadow changes
  * 3. Trigger alerts or notifications if needed
  * 4. Update device metadata
- *
- * @param {Object} event - IoT Rule event containing shadow update
  */
-exports.handler = async (event) => {
+export const handler = async (event: ShadowUpdateEvent): Promise<ShadowUpdateResponse> => {
   console.log('Shadow Update Event:', JSON.stringify(event, null, 2));
 
   try {
@@ -67,7 +85,7 @@ exports.handler = async (event) => {
       statusCode: 500,
       body: JSON.stringify({
         message: 'Error processing shadow update',
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }
@@ -76,7 +94,7 @@ exports.handler = async (event) => {
 /**
  * Extract thing name from MQTT topic
  */
-function extractThingNameFromTopic(topic) {
+function extractThingNameFromTopic(topic: string | undefined): string | null {
   if (!topic) return null;
 
   // Topic format: $aws/things/{thingName}/shadow/update/accepted
@@ -88,7 +106,16 @@ function extractThingNameFromTopic(topic) {
 /**
  * Store shadow update history in DynamoDB
  */
-async function storeShadowHistory(thingName, shadowName, shadowData) {
+async function storeShadowHistory(
+  thingName: string,
+  shadowName: string,
+  shadowData: {
+    state?: ShadowState;
+    metadata?: any;
+    version?: number;
+    timestamp: number;
+  }
+): Promise<void> {
   const timestamp = shadowData.timestamp || Date.now();
 
   const params = {
@@ -111,7 +138,7 @@ async function storeShadowHistory(thingName, shadowName, shadowData) {
 /**
  * Process shadow changes for business logic
  */
-async function processShadowChanges(thingName, shadowName, state) {
+async function processShadowChanges(thingName: string, _shadowName: string, state: ShadowState | undefined): Promise<void> {
   try {
     // Extract reported and desired states
     const reported = state?.reported || {};
@@ -164,7 +191,7 @@ async function processShadowChanges(thingName, shadowName, state) {
 /**
  * Update device last seen timestamp
  */
-async function updateDeviceLastSeen(thingName) {
+async function updateDeviceLastSeen(thingName: string): Promise<void> {
   try {
     const queryParams = {
       TableName: DEVICE_TABLE,
@@ -204,7 +231,8 @@ async function updateDeviceLastSeen(thingName) {
 /**
  * Helper function to send low battery alert (example)
  */
-async function sendLowBatteryAlert(thingName, batteryLevel) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function sendLowBatteryAlert(thingName: string, batteryLevel: number): Promise<void> {
   // TODO: Implement alert notification
   // For example, publish to SNS topic:
   //

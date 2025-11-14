@@ -1,18 +1,19 @@
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, QueryCommand, QueryCommandInput } from '@aws-sdk/lib-dynamodb';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const DEVICE_TABLE = process.env.DEVICE_TABLE;
-const SHADOW_HISTORY_TABLE = process.env.SHADOW_HISTORY_TABLE;
+const DEVICE_TABLE = process.env.DEVICE_TABLE!;
+const SHADOW_HISTORY_TABLE = process.env.SHADOW_HISTORY_TABLE!;
 
 /**
  * Get Shadow History API Handler
  *
  * GET /devices/{deviceId}/shadow/history?limit=20&startTime=xxx&endTime=xxx
  */
-exports.handler = async (event) => {
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Get Shadow History Event:', JSON.stringify(event, null, 2));
 
   try {
@@ -43,7 +44,7 @@ exports.handler = async (event) => {
     }
 
     const device = result.Item;
-    const thingName = device.thingName;
+    const thingName = device.thingName as string;
 
     // Parse query parameters
     const queryParams = event.queryStringParameters || {};
@@ -52,7 +53,7 @@ exports.handler = async (event) => {
     const endTime = queryParams.endTime ? parseInt(queryParams.endTime, 10) : null;
 
     // Query shadow history
-    const historyParams = {
+    const historyParams: QueryCommandInput = {
       TableName: SHADOW_HISTORY_TABLE,
       KeyConditionExpression: 'thingName = :tn',
       ExpressionAttributeValues: {
@@ -68,14 +69,14 @@ exports.handler = async (event) => {
       historyParams.ExpressionAttributeNames = {
         '#timestamp': 'timestamp'
       };
-      historyParams.ExpressionAttributeValues[':start'] = startTime;
-      historyParams.ExpressionAttributeValues[':end'] = endTime;
+      historyParams.ExpressionAttributeValues![':start'] = startTime;
+      historyParams.ExpressionAttributeValues![':end'] = endTime;
     } else if (startTime) {
       historyParams.KeyConditionExpression += ' AND #timestamp >= :start';
       historyParams.ExpressionAttributeNames = {
         '#timestamp': 'timestamp'
       };
-      historyParams.ExpressionAttributeValues[':start'] = startTime;
+      historyParams.ExpressionAttributeValues![':start'] = startTime;
     }
 
     const historyResult = await docClient.send(new QueryCommand(historyParams));
@@ -102,7 +103,7 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         error: 'Failed to get shadow history',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }

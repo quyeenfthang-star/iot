@@ -1,12 +1,18 @@
-const { IoTDataPlaneClient, UpdateThingShadowCommand } = require('@aws-sdk/client-iot-data-plane');
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
+import { IoTDataPlaneClient, UpdateThingShadowCommand } from '@aws-sdk/client-iot-data-plane';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const iotDataClient = new IoTDataPlaneClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const DEVICE_TABLE = process.env.DEVICE_TABLE;
+const DEVICE_TABLE = process.env.DEVICE_TABLE!;
+
+interface UpdateShadowBody {
+  desired: Record<string, any>;
+  shadowName?: string;
+}
 
 /**
  * Update Device Shadow API Handler
@@ -14,7 +20,7 @@ const DEVICE_TABLE = process.env.DEVICE_TABLE;
  * PUT /devices/{deviceId}/shadow
  * Body: { desired: { ... }, shadowName: 'optional' }
  */
-exports.handler = async (event) => {
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Update Device Shadow Event:', JSON.stringify(event, null, 2));
 
   try {
@@ -45,10 +51,10 @@ exports.handler = async (event) => {
     }
 
     const device = result.Item;
-    const thingName = device.thingName;
+    const thingName = device.thingName as string;
 
     // Parse request body
-    const body = JSON.parse(event.body || '{}');
+    const body: UpdateShadowBody = JSON.parse(event.body || '{}');
     const { desired, shadowName } = body;
 
     if (!desired) {
@@ -69,7 +75,7 @@ exports.handler = async (event) => {
     const command = new UpdateThingShadowCommand({
       thingName,
       shadowName, // undefined for classic shadow
-      payload: JSON.stringify(shadowUpdate)
+      payload: new TextEncoder().encode(JSON.stringify(shadowUpdate))
     });
 
     const shadowResult = await iotDataClient.send(command);
@@ -92,7 +98,7 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         error: 'Failed to update device shadow',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }

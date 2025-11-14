@@ -1,12 +1,35 @@
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, PutCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
-const { v4: uuidv4 } = require('uuid');
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { v4 as uuidv4 } from 'uuid';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const DEVICE_TABLE = process.env.DEVICE_TABLE;
-const PROVISIONING_LOGS_TABLE = process.env.PROVISIONING_LOGS_TABLE;
+const DEVICE_TABLE = process.env.DEVICE_TABLE!;
+const PROVISIONING_LOGS_TABLE = process.env.PROVISIONING_LOGS_TABLE!;
+
+interface ProvisioningEvent {
+  parameters: {
+    SerialNumber: string;
+    DeviceType: string;
+  };
+  certificateId: string;
+}
+
+interface ProvisioningResponse {
+  allowProvisioning: boolean;
+  parameterOverrides: Record<string, any>;
+}
+
+interface ProvisioningLogDetails {
+  serialNumber?: string;
+  deviceType?: string;
+  deviceId?: string;
+  certificateId?: string;
+  status: string;
+  reason?: string;
+  error?: string;
+}
 
 /**
  * Pre-Provisioning Hook Lambda Function
@@ -17,11 +40,8 @@ const PROVISIONING_LOGS_TABLE = process.env.PROVISIONING_LOGS_TABLE;
  * 2. Device authorization (whitelist/database check)
  * 3. Duplicate device prevention
  * 4. Custom business logic validation
- *
- * @param {Object} event - Fleet provisioning hook event
- * @returns {Object} Approval/rejection response with optional parameters
  */
-exports.handler = async (event) => {
+export const handler = async (event: ProvisioningEvent): Promise<ProvisioningResponse> => {
   console.log('Pre-Provisioning Hook Event:', JSON.stringify(event, null, 2));
 
   const requestId = uuidv4();
@@ -135,7 +155,7 @@ exports.handler = async (event) => {
 
     await logProvisioningRequest(requestId, timestamp, {
       status: 'ERROR',
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
 
     // In case of error, reject the provisioning
@@ -149,7 +169,7 @@ exports.handler = async (event) => {
 /**
  * Check if device already exists in the registry
  */
-async function checkExistingDevice(serialNumber) {
+async function checkExistingDevice(serialNumber: string): Promise<any | null> {
   try {
     const params = {
       TableName: DEVICE_TABLE,
@@ -174,7 +194,7 @@ async function checkExistingDevice(serialNumber) {
  * Check if device is authorized for provisioning
  * In production, this might check against a whitelist or external API
  */
-async function checkDeviceAuthorization(serialNumber, deviceType) {
+async function checkDeviceAuthorization(serialNumber: string, _deviceType: string): Promise<boolean> {
   // TODO: Implement your authorization logic here
   // For example:
   // - Check against a whitelist in DynamoDB
@@ -197,7 +217,12 @@ async function checkDeviceAuthorization(serialNumber, deviceType) {
 /**
  * Store device information in the registry
  */
-async function storeDeviceInfo(deviceId, serialNumber, deviceType, certificateId) {
+async function storeDeviceInfo(
+  deviceId: string,
+  serialNumber: string,
+  deviceType: string,
+  certificateId: string
+): Promise<void> {
   const params = {
     TableName: DEVICE_TABLE,
     Item: {
@@ -219,7 +244,11 @@ async function storeDeviceInfo(deviceId, serialNumber, deviceType, certificateId
 /**
  * Log provisioning request for audit trail
  */
-async function logProvisioningRequest(requestId, timestamp, details) {
+async function logProvisioningRequest(
+  requestId: string,
+  timestamp: number,
+  details: ProvisioningLogDetails
+): Promise<void> {
   const params = {
     TableName: PROVISIONING_LOGS_TABLE,
     Item: {

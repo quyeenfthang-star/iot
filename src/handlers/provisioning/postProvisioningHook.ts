@@ -1,12 +1,23 @@
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, UpdateCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
-const { IoTClient, AddThingToThingGroupCommand, DescribeThingCommand } = require('@aws-sdk/client-iot');
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { IoTClient, AddThingToThingGroupCommand, DescribeThingCommand, DescribeThingCommandOutput } from '@aws-sdk/client-iot';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const iotClient = new IoTClient({});
 
-const DEVICE_TABLE = process.env.DEVICE_TABLE;
+const DEVICE_TABLE = process.env.DEVICE_TABLE!;
+
+interface PostProvisioningEvent {
+  thingName: string;
+  certificateId?: string;
+  deviceType?: string;
+}
+
+interface PostProvisioningResponse {
+  statusCode: number;
+  body: string;
+}
 
 /**
  * Post-Provisioning Hook Lambda Function
@@ -20,14 +31,12 @@ const DEVICE_TABLE = process.env.DEVICE_TABLE;
  * 5. Trigger any custom business logic
  *
  * Note: This is invoked manually or via IoT Rules after provisioning
- *
- * @param {Object} event - Contains thing name and provisioning details
  */
-exports.handler = async (event) => {
+export const handler = async (event: PostProvisioningEvent): Promise<PostProvisioningResponse> => {
   console.log('Post-Provisioning Hook Event:', JSON.stringify(event, null, 2));
 
   try {
-    const { thingName, certificateId, deviceType } = event;
+    const { thingName, deviceType } = event;
 
     if (!thingName) {
       throw new Error('Missing thingName in event');
@@ -69,7 +78,7 @@ exports.handler = async (event) => {
 /**
  * Get thing details from IoT Core
  */
-async function getThingDetails(thingName) {
+async function getThingDetails(thingName: string): Promise<DescribeThingCommandOutput> {
   const command = new DescribeThingCommand({ thingName });
   return await iotClient.send(command);
 }
@@ -77,7 +86,7 @@ async function getThingDetails(thingName) {
 /**
  * Update device status in DynamoDB registry
  */
-async function updateDeviceStatus(serialNumber, thingName, status) {
+async function updateDeviceStatus(_serialNumber: string | undefined, thingName: string, status: string): Promise<void> {
   // First, find the device by serial number or thing name
   // For simplicity, we'll use thing name if serial number is not available
   const queryParams = {
@@ -124,7 +133,7 @@ async function updateDeviceStatus(serialNumber, thingName, status) {
 /**
  * Add thing to appropriate Thing Group
  */
-async function addToThingGroup(thingName, deviceType) {
+async function addToThingGroup(thingName: string, _deviceType: string | undefined): Promise<void> {
   try {
     // Add to production group
     await iotClient.send(new AddThingToThingGroupCommand({
@@ -149,8 +158,9 @@ async function addToThingGroup(thingName, deviceType) {
 /**
  * Initialize device shadow with default values (optional)
  */
-async function initializeDeviceShadow(thingName, deviceType) {
-  const { IoTDataPlaneClient, UpdateThingShadowCommand } = require('@aws-sdk/client-iot-data-plane');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function initializeDeviceShadow(thingName: string, _deviceType: string | undefined): Promise<void> {
+  const { IoTDataPlaneClient, UpdateThingShadowCommand } = await import('@aws-sdk/client-iot-data-plane');
 
   const iotDataClient = new IoTDataPlaneClient({});
 
@@ -170,7 +180,7 @@ async function initializeDeviceShadow(thingName, deviceType) {
   try {
     const command = new UpdateThingShadowCommand({
       thingName,
-      payload: JSON.stringify(initialShadow)
+      payload: new TextEncoder().encode(JSON.stringify(initialShadow))
     });
 
     await iotDataClient.send(command);

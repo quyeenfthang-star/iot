@@ -1,19 +1,20 @@
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
-const { IoTClient, DescribeThingCommand } = require('@aws-sdk/client-iot');
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { IoTClient, DescribeThingCommand } from '@aws-sdk/client-iot';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const iotClient = new IoTClient({});
 
-const DEVICE_TABLE = process.env.DEVICE_TABLE;
+const DEVICE_TABLE = process.env.DEVICE_TABLE!;
 
 /**
  * Get Device API Handler
  *
  * GET /devices/{deviceId}
  */
-exports.handler = async (event) => {
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Get Device Event:', JSON.stringify(event, null, 2));
 
   try {
@@ -54,7 +55,7 @@ exports.handler = async (event) => {
         });
         thingDetails = await iotClient.send(thingCommand);
       } catch (error) {
-        console.warn('Could not fetch thing details:', error.message);
+        console.warn('Could not fetch thing details:', error instanceof Error ? error.message : 'Unknown error');
       }
     }
 
@@ -75,7 +76,7 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         error: 'Failed to get device',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }

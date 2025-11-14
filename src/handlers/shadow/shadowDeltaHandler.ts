@@ -1,12 +1,27 @@
-const { IoTDataPlaneClient, PublishCommand } = require('@aws-sdk/client-iot-data-plane');
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
+import { IoTDataPlaneClient, PublishCommand } from '@aws-sdk/client-iot-data-plane';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 
 const iotDataClient = new IoTDataPlaneClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const SHADOW_HISTORY_TABLE = process.env.SHADOW_HISTORY_TABLE;
+const SHADOW_HISTORY_TABLE = process.env.SHADOW_HISTORY_TABLE!;
+
+interface ShadowDeltaEvent {
+  thingName?: string;
+  topic?: string;
+  shadowName?: string;
+  state?: Record<string, any>;
+  metadata?: any;
+  version?: number;
+  timestamp?: number;
+}
+
+interface ShadowDeltaResponse {
+  statusCode: number;
+  body: string;
+}
 
 /**
  * Shadow Delta Handler Lambda Function
@@ -19,10 +34,8 @@ const SHADOW_HISTORY_TABLE = process.env.SHADOW_HISTORY_TABLE;
  * 2. Notify devices of configuration changes
  * 3. Track pending updates
  * 4. Implement custom business logic for specific deltas
- *
- * @param {Object} event - IoT Rule event containing shadow delta
  */
-exports.handler = async (event) => {
+export const handler = async (event: ShadowDeltaEvent): Promise<ShadowDeltaResponse> => {
   console.log('Shadow Delta Event:', JSON.stringify(event, null, 2));
 
   try {
@@ -67,7 +80,7 @@ exports.handler = async (event) => {
       statusCode: 500,
       body: JSON.stringify({
         message: 'Error processing shadow delta',
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }
@@ -76,7 +89,7 @@ exports.handler = async (event) => {
 /**
  * Extract thing name from MQTT topic
  */
-function extractThingNameFromTopic(topic) {
+function extractThingNameFromTopic(topic: string | undefined): string | null {
   if (!topic) return null;
 
   // Topic format: $aws/things/{thingName}/shadow/update/delta
@@ -87,7 +100,16 @@ function extractThingNameFromTopic(topic) {
 /**
  * Log delta changes to DynamoDB
  */
-async function logDelta(thingName, shadowName, deltaData) {
+async function logDelta(
+  thingName: string,
+  shadowName: string,
+  deltaData: {
+    state?: Record<string, any>;
+    metadata?: any;
+    version?: number;
+    timestamp: number;
+  }
+): Promise<void> {
   const timestamp = deltaData.timestamp || Date.now();
 
   const params = {
@@ -111,8 +133,10 @@ async function logDelta(thingName, shadowName, deltaData) {
 /**
  * Process delta changes for business logic
  */
-async function processDeltaChanges(thingName, shadowName, delta) {
+async function processDeltaChanges(thingName: string, _shadowName: string, delta: Record<string, any> | undefined): Promise<void> {
   try {
+    if (!delta) return;
+
     console.log(`Processing delta for ${thingName}:`, JSON.stringify(delta, null, 2));
 
     // Example 1: Firmware update request
@@ -162,7 +186,7 @@ async function processDeltaChanges(thingName, shadowName, delta) {
 /**
  * Handle remote commands sent via shadow
  */
-async function handleRemoteCommand(thingName, command) {
+async function handleRemoteCommand(thingName: string, command: any): Promise<void> {
   console.log(`Executing remote command for ${thingName}:`, command);
 
   // Validate command
@@ -188,7 +212,8 @@ async function handleRemoteCommand(thingName, command) {
  * Device already receives delta on shadow topic, but you might want
  * to send additional notifications
  */
-async function notifyDevice(thingName, delta) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function notifyDevice(thingName: string, delta: Record<string, any> | undefined): Promise<void> {
   const topic = `device/${thingName}/notifications`;
 
   const message = {
@@ -201,7 +226,7 @@ async function notifyDevice(thingName, delta) {
   try {
     await iotDataClient.send(new PublishCommand({
       topic,
-      payload: JSON.stringify(message),
+      payload: new TextEncoder().encode(JSON.stringify(message)),
       qos: 1
     }));
 
@@ -215,7 +240,8 @@ async function notifyDevice(thingName, delta) {
 /**
  * Revert invalid shadow update (example)
  */
-async function revertShadowUpdate(thingName, field) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function revertShadowUpdate(thingName: string, field: string): Promise<void> {
   // TODO: Implement shadow revert logic
   // This would remove the invalid field from desired state
 
@@ -225,7 +251,8 @@ async function revertShadowUpdate(thingName, field) {
 /**
  * Create firmware update job (example)
  */
-async function createFirmwareUpdateJob(thingName, firmwareInfo) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function createFirmwareUpdateJob(thingName: string, firmwareInfo: any): Promise<void> {
   // TODO: Implement IoT Jobs integration
   // const { IoTClient, CreateJobCommand } = require('@aws-sdk/client-iot');
   //

@@ -1,17 +1,18 @@
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, ScanCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const DEVICE_TABLE = process.env.DEVICE_TABLE;
+const DEVICE_TABLE = process.env.DEVICE_TABLE!;
 
 /**
  * List Devices API Handler
  *
  * GET /devices?status=ACTIVE&limit=20&lastKey=xxx
  */
-exports.handler = async (event) => {
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('List Devices Event:', JSON.stringify(event, null, 2));
 
   try {
@@ -68,7 +69,7 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         error: 'Failed to list devices',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }

@@ -1,14 +1,40 @@
-const { IoTClient, CreateThingCommand, CreateKeysAndCertificateCommand, AttachThingPrincipalCommand, AttachPolicyCommand } = require('@aws-sdk/client-iot');
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
-const { v4: uuidv4 } = require('uuid');
+import {
+  IoTClient,
+  CreateThingCommand,
+  CreateKeysAndCertificateCommand,
+  AttachThingPrincipalCommand,
+  AttachPolicyCommand,
+  CreateThingCommandOutput,
+  CreateKeysAndCertificateCommandOutput
+} from '@aws-sdk/client-iot';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { v4 as uuidv4 } from 'uuid';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const iotClient = new IoTClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const DEVICE_TABLE = process.env.DEVICE_TABLE;
+const DEVICE_TABLE = process.env.DEVICE_TABLE!;
 const DEVICE_POLICY_NAME = process.env.DEVICE_POLICY_NAME || 'iot-shadow-management-device-policy-dev';
+
+interface CreateDeviceBody {
+  serialNumber: string;
+  deviceType: string;
+  attributes?: Record<string, string>;
+}
+
+interface DeviceData {
+  serialNumber: string;
+  deviceType: string;
+  thingName: string;
+  thingArn?: string;
+  certificateArn: string;
+  certificateId: string;
+  attributes: Record<string, string>;
+  status: string;
+}
 
 /**
  * Create Device API Handler
@@ -22,12 +48,12 @@ const DEVICE_POLICY_NAME = process.env.DEVICE_POLICY_NAME || 'iot-shadow-managem
  * POST /devices
  * Body: { serialNumber, deviceType, attributes }
  */
-exports.handler = async (event) => {
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Create Device Event:', JSON.stringify(event, null, 2));
 
   try {
     // Parse request body
-    const body = JSON.parse(event.body || '{}');
+    const body: CreateDeviceBody = JSON.parse(event.body || '{}');
     const { serialNumber, deviceType, attributes = {} } = body;
 
     // Validate required parameters
@@ -67,10 +93,10 @@ exports.handler = async (event) => {
     const certResult = await createCertificate();
 
     // Attach certificate to thing
-    await attachCertificateToThing(certResult.certificateArn, thingName);
+    await attachCertificateToThing(certResult.certificateArn!, thingName);
 
     // Attach policy to certificate
-    await attachPolicyToCertificate(certResult.certificateArn);
+    await attachPolicyToCertificate(certResult.certificateArn!);
 
     // Store device in DynamoDB
     await storeDevice(deviceId, {
@@ -78,8 +104,8 @@ exports.handler = async (event) => {
       deviceType,
       thingName,
       thingArn: thingResult.thingArn,
-      certificateArn: certResult.certificateArn,
-      certificateId: certResult.certificateId,
+      certificateArn: certResult.certificateArn!,
+      certificateId: certResult.certificateId!,
       attributes,
       status: 'ACTIVE'
     });
@@ -102,8 +128,8 @@ exports.handler = async (event) => {
           certificateId: certResult.certificateId,
           certificatePem: certResult.certificatePem,
           keyPair: {
-            publicKey: certResult.keyPair.PublicKey,
-            privateKey: certResult.keyPair.PrivateKey
+            publicKey: certResult.keyPair?.PublicKey,
+            privateKey: certResult.keyPair?.PrivateKey
           }
         },
         iotEndpoint: process.env.IOT_ENDPOINT
@@ -118,7 +144,7 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         error: 'Failed to create device',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }
@@ -127,7 +153,11 @@ exports.handler = async (event) => {
 /**
  * Create IoT Thing
  */
-async function createThing(thingName, deviceType, attributes) {
+async function createThing(
+  thingName: string,
+  deviceType: string,
+  attributes: Record<string, string>
+): Promise<CreateThingCommandOutput> {
   const command = new CreateThingCommand({
     thingName,
     thingTypeName: deviceType,
@@ -145,7 +175,7 @@ async function createThing(thingName, deviceType, attributes) {
 /**
  * Create certificate and key pair
  */
-async function createCertificate() {
+async function createCertificate(): Promise<CreateKeysAndCertificateCommandOutput> {
   const command = new CreateKeysAndCertificateCommand({
     setAsActive: true
   });
@@ -159,7 +189,7 @@ async function createCertificate() {
 /**
  * Attach certificate to thing
  */
-async function attachCertificateToThing(certificateArn, thingName) {
+async function attachCertificateToThing(certificateArn: string, thingName: string): Promise<void> {
   const command = new AttachThingPrincipalCommand({
     thingName,
     principal: certificateArn
@@ -172,7 +202,7 @@ async function attachCertificateToThing(certificateArn, thingName) {
 /**
  * Attach policy to certificate
  */
-async function attachPolicyToCertificate(certificateArn) {
+async function attachPolicyToCertificate(certificateArn: string): Promise<void> {
   const command = new AttachPolicyCommand({
     policyName: DEVICE_POLICY_NAME,
     target: certificateArn
@@ -185,7 +215,7 @@ async function attachPolicyToCertificate(certificateArn) {
 /**
  * Store device in DynamoDB
  */
-async function storeDevice(deviceId, deviceData) {
+async function storeDevice(deviceId: string, deviceData: DeviceData): Promise<void> {
   const params = {
     TableName: DEVICE_TABLE,
     Item: {

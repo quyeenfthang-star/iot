@@ -1,19 +1,20 @@
-const { IoTDataPlaneClient, GetThingShadowCommand } = require('@aws-sdk/client-iot-data-plane');
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
+import { IoTDataPlaneClient, GetThingShadowCommand } from '@aws-sdk/client-iot-data-plane';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const iotDataClient = new IoTDataPlaneClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const DEVICE_TABLE = process.env.DEVICE_TABLE;
+const DEVICE_TABLE = process.env.DEVICE_TABLE!;
 
 /**
  * Get Device Shadow API Handler
  *
  * GET /devices/{deviceId}/shadow?shadowName=optional
  */
-exports.handler = async (event) => {
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log('Get Device Shadow Event:', JSON.stringify(event, null, 2));
 
   try {
@@ -44,7 +45,7 @@ exports.handler = async (event) => {
     }
 
     const device = result.Item;
-    const thingName = device.thingName;
+    const thingName = device.thingName as string;
 
     // Get shadow name from query params
     const queryParams = event.queryStringParameters || {};
@@ -76,7 +77,7 @@ exports.handler = async (event) => {
     console.error('Error getting device shadow:', error);
 
     // Handle shadow not found
-    if (error.name === 'ResourceNotFoundException') {
+    if (error instanceof Error && error.name === 'ResourceNotFoundException') {
       return {
         statusCode: 404,
         headers: { 'Content-Type': 'application/json' },
@@ -92,7 +93,7 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         error: 'Failed to get device shadow',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       })
     };
   }

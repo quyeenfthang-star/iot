@@ -590,5 +590,5 @@ resources:
         Name: ${self:service}-${self:provider.stage}-ApiEndpoint
 
 plugins:
+  - serverless-plugin-typescript
   - serverless-offline
-  - serverless-iot-local
