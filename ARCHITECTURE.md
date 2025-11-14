@@ -124,7 +124,58 @@
                    │ │ - deviceId                │  │
                    │ │ - status                  │  │
                    │ └───────────────────────────┘  │
+                   │                                │
+                   │ ┌───────────────────────────┐  │
+                   │ │ FleetAnalytics            │  │
+                   │ │ - metricId (PK)           │  │
+                   │ │ - timestamp (SK)          │  │
+                   │ │ - metricType              │  │
+                   │ │ - dimensions              │  │
+                   │ │ - value                   │  │
+                   │ └───────────────────────────┘  │
+                   │                                │
+                   │ ┌───────────────────────────┐  │
+                   │ │ GreengrassDeployments     │  │
+                   │ │ - deploymentId (PK)       │  │
+                   │ │ - createdAt (SK)          │  │
+                   │ │ - targetArn               │  │
+                   │ │ - status                  │  │
+                   │ │ - components              │  │
+                   │ └───────────────────────────┘  │
                    └────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SNS ALERTS                                         │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │                      Device Alert Topic                                │ │
+│  │                                                                         │ │
+│  │  Alert Types:                                                          │ │
+│  │  - LOW_BATTERY (Critical/Warning)                                      │ │
+│  │  - TEMPERATURE_ALERT                                                   │ │
+│  │  - DISCONNECTED                                                        │ │
+│  │  - DEVICE_ERROR                                                        │ │
+│  │  - HIGH_MEMORY_USAGE                                                   │ │
+│  │  - HIGH_CPU_USAGE                                                      │ │
+│  │  - LOW_DISK_SPACE                                                      │ │
+│  │                                                                         │ │
+│  │  Subscriptions: Email, SMS, HTTPS, Lambda, SQS                        │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      AWS IoT GREENGRASS                                      │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │                      Deployment Manager                                │ │
+│  │                                                                         │ │
+│  │  - Create deployments to devices/groups                               │ │
+│  │  - Manage component versions                                           │ │
+│  │  - Track deployment status                                             │ │
+│  │  - Cancel active deployments                                           │ │
+│  │  - Policy-based rollback/failure handling                             │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         APPLICATION LAYER                                    │
@@ -233,6 +284,91 @@
      │                    │                    │                    │
      │                    │ 6. Store to DB     │                    │
      │                    ├───────────────────────────────────────▶│
+     │                    │                    │                    │
+```
+
+### 4. Fleet Analytics Flow
+
+```
+┌─────────┐          ┌─────────┐         ┌──────────┐         ┌─────────┐
+│ Device  │          │DynamoDB │         │ Lambda   │         │DynamoDB │
+│Registry │          │ Stream  │         │Analytics │         │Analytics│
+└────┬────┘          └────┬────┘         └────┬─────┘         └────┬────┘
+     │                    │                    │                    │
+     │ 1. Device Status   │                    │                    │
+     │    Change (INSERT/ │                    │                    │
+     │    MODIFY)         │                    │                    │
+     ├───────────────────▶│                    │                    │
+     │                    │                    │                    │
+     │                    │ 2. Stream Event    │                    │
+     │                    ├───────────────────▶│                    │
+     │                    │                    │                    │
+     │                    │                    │ 3. Aggregate       │
+     │                    │                    │    Metrics         │
+     │                    │                    │    - Count by Type │
+     │                    │                    │    - Count by      │
+     │                    │                    │      Status        │
+     │                    │                    │    - Total Fleet   │
+     │                    │                    │                    │
+     │                    │                    │ 4. Store Metrics   │
+     │                    │                    ├───────────────────▶│
+     │                    │                    │                    │
+```
+
+### 5. SNS Alert Flow
+
+```
+┌─────────┐          ┌─────────┐         ┌──────────┐         ┌─────────┐
+│ Shadow  │          │DynamoDB │         │ Lambda   │         │   SNS   │
+│ History │          │ Stream  │         │ Alert    │         │  Topic  │
+└────┬────┘          └────┬────┘         └────┬─────┘         └────┬────┘
+     │                    │                    │                    │
+     │ 1. Shadow Update   │                    │                    │
+     │    Stored          │                    │                    │
+     ├───────────────────▶│                    │                    │
+     │                    │                    │                    │
+     │                    │ 2. Stream Event    │                    │
+     │                    ├───────────────────▶│                    │
+     │                    │                    │                    │
+     │                    │                    │ 3. Detect Alerts   │
+     │                    │                    │    - Low Battery   │
+     │                    │                    │    - High Temp     │
+     │                    │                    │    - Errors        │
+     │                    │                    │    - Disconnected  │
+     │                    │                    │                    │
+     │                    │                    │ 4. Publish Alert   │
+     │                    │                    ├───────────────────▶│
+     │                    │                    │                    │
+     │                    │                    │                    │ 5. Notify
+     │                    │                    │                    │ Subscribers
+     │                    │                    │                    │ (Email/SMS)
+     │                    │                    │                    │
+```
+
+### 6. Greengrass Deployment Flow
+
+```
+┌─────────┐          ┌─────────┐         ┌──────────┐         ┌─────────┐
+│   API   │          │ Lambda  │         │Greengrass│         │DynamoDB │
+│ Request │          │         │         │  Service │         │         │
+└────┬────┘          └────┬────┘         └────┬─────┘         └────┬────┘
+     │                    │                    │                    │
+     │ 1. Create Deploy   │                    │                    │
+     │    Request         │                    │                    │
+     ├───────────────────▶│                    │                    │
+     │                    │                    │                    │
+     │                    │ 2. Call Greengrass │                    │
+     │                    │    API             │                    │
+     │                    ├───────────────────▶│                    │
+     │                    │                    │                    │
+     │                    │ 3. Deployment ID   │                    │
+     │                    │◀───────────────────┤                    │
+     │                    │                    │                    │
+     │                    │ 4. Store Record    │                    │
+     │                    ├───────────────────────────────────────▶│
+     │                    │                    │                    │
+     │ 5. Response        │                    │ 6. Deploy to       │
+     │◀───────────────────┤                    │    Devices         │
      │                    │                    │                    │
 ```
 

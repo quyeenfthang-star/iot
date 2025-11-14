@@ -9,6 +9,9 @@ This project provides a production-ready infrastructure for:
 - **Fleet Provisioning**: Automatically register and provision IoT devices
 - **Shadow Management**: Synchronize device state between cloud and devices
 - **Device Management**: REST API for device CRUD operations
+- **Fleet Analytics**: Real-time metrics aggregation and fleet-wide reporting
+- **Greengrass Deployment Manager**: Manage edge deployments and component updates
+- **SNS Alert System**: Intelligent device monitoring with automated notifications
 - **Telemetry & History**: Track device shadow updates over time
 - **Security**: Certificate-based authentication and fine-grained policies
 
@@ -32,13 +35,24 @@ iot/
 │       ├── shadow/
 │       │   ├── shadowUpdateHandler.js    # Processes shadow updates
 │       │   └── shadowDeltaHandler.js     # Processes shadow deltas
+│       ├── analytics/
+│       │   └── fleetAnalyticsAggregator.js  # Aggregates fleet metrics
+│       ├── alerts/
+│       │   └── deviceAlertHandler.js     # Processes alerts and sends SNS
+│       ├── greengrass/
+│       │   ├── createDeployment.js       # Create Greengrass deployments
+│       │   ├── getDeployment.js          # Get deployment status
+│       │   ├── listDeployments.js        # List deployments
+│       │   └── cancelDeployment.js       # Cancel deployments
 │       └── api/
 │           ├── createDevice.js           # Create device manually
 │           ├── getDevice.js              # Get device details
 │           ├── listDevices.js            # List all devices
 │           ├── updateDeviceShadow.js     # Update device shadow
 │           ├── getDeviceShadow.js        # Get device shadow
-│           └── getShadowHistory.js       # Get shadow history
+│           ├── getShadowHistory.js       # Get shadow history
+│           ├── getFleetAnalytics.js      # Get fleet analytics
+│           └── getDeviceMetrics.js       # Get device metrics
 ├── examples/
 │   ├── device-client-python/       # Python device client example
 │   └── device-client-nodejs/       # Node.js device client example
@@ -98,6 +112,9 @@ After deployment, you'll see outputs including:
 
 - **DeviceTableName**: DynamoDB table for device registry
 - **ShadowHistoryTableName**: DynamoDB table for shadow history
+- **FleetAnalyticsTableName**: DynamoDB table for fleet analytics
+- **GreengrassDeploymentsTableName**: DynamoDB table for Greengrass deployments
+- **DeviceAlertTopicArn**: SNS topic ARN for device alerts
 - **ProvisioningTemplateName**: Fleet provisioning template name
 - **ClaimPolicyName**: Policy name for claim certificates
 - **DevicePolicyName**: Policy name for device certificates
@@ -258,6 +275,168 @@ curl https://<api-endpoint>/dev/devices/<deviceId>/shadow/history
 curl "https://<api-endpoint>/dev/devices/<deviceId>/shadow/history?startTime=1234567890000&endTime=1234567900000&limit=50"
 ```
 
+### Fleet Analytics API
+
+#### Get Fleet Analytics
+
+```bash
+# Get all fleet metrics
+curl https://<api-endpoint>/dev/analytics/fleet
+
+# Filter by metric type
+curl "https://<api-endpoint>/dev/analytics/fleet?metricType=device-count-by-type"
+
+# Get metrics for date range
+curl "https://<api-endpoint>/dev/analytics/fleet?startDate=2025-01-01&endDate=2025-01-31"
+```
+
+Example response:
+```json
+{
+  "summary": {
+    "totalDevices": 150,
+    "devicesByStatus": {
+      "ACTIVE": 120,
+      "INACTIVE": 25,
+      "PROVISIONING": 5
+    },
+    "byDeviceType": {
+      "Sensor": 100,
+      "Gateway": 30,
+      "Actuator": 20
+    }
+  },
+  "metrics": [...],
+  "timestamp": "2025-11-14T10:00:00Z"
+}
+```
+
+#### Get Device Metrics
+
+```bash
+# Get device metrics (default: last 24 hours)
+curl https://<api-endpoint>/dev/analytics/devices/<deviceId>/metrics
+
+# Specify time period (1h, 24h, 7d, 30d)
+curl "https://<api-endpoint>/dev/analytics/devices/<deviceId>/metrics?period=7d"
+```
+
+Example response:
+```json
+{
+  "deviceId": "abc-123",
+  "thingName": "Sensor-TEST001",
+  "period": "24h",
+  "metrics": {
+    "updateCount": 288,
+    "averageUpdateInterval": 300000,
+    "battery": {
+      "current": 85,
+      "average": 87.5,
+      "min": 82,
+      "max": 92
+    },
+    "temperature": {
+      "current": 22.5,
+      "average": 21.8,
+      "min": 18.2,
+      "max": 24.7
+    },
+    "errorCount": 2,
+    "alertCount": 5
+  }
+}
+```
+
+### Greengrass Deployment API
+
+#### Create Deployment
+
+```bash
+curl -X POST https://<api-endpoint>/dev/greengrass/deployments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetArn": "arn:aws:iot:us-east-1:123456789012:thinggroup/MyDeviceGroup",
+    "deploymentName": "Firmware Update v2.0",
+    "components": {
+      "com.example.MyComponent": {
+        "componentVersion": "2.0.0",
+        "configurationUpdate": {
+          "merge": "{\"setting1\":\"value1\"}"
+        }
+      }
+    },
+    "deploymentPolicies": {
+      "failureHandlingPolicy": "ROLLBACK",
+      "componentUpdatePolicy": {
+        "timeoutInSeconds": 300,
+        "action": "NOTIFY_COMPONENTS"
+      }
+    }
+  }'
+```
+
+#### Get Deployment
+
+```bash
+curl https://<api-endpoint>/dev/greengrass/deployments/<deploymentId>
+```
+
+#### List Deployments
+
+```bash
+# List all deployments
+curl https://<api-endpoint>/dev/greengrass/deployments
+
+# Filter by target
+curl "https://<api-endpoint>/dev/greengrass/deployments?targetArn=arn:aws:iot:..."
+
+# Filter by status
+curl "https://<api-endpoint>/dev/greengrass/deployments?status=ACTIVE"
+
+# Use local DynamoDB history
+curl "https://<api-endpoint>/dev/greengrass/deployments?historyFilter=true"
+```
+
+#### Cancel Deployment
+
+```bash
+curl -X DELETE https://<api-endpoint>/dev/greengrass/deployments/<deploymentId>
+```
+
+### SNS Alert Configuration
+
+#### Subscribe to Alerts
+
+```bash
+# Subscribe email to alerts
+aws sns subscribe \
+  --topic-arn <DeviceAlertTopicArn> \
+  --protocol email \
+  --notification-endpoint your-email@example.com
+
+# Subscribe SMS
+aws sns subscribe \
+  --topic-arn <DeviceAlertTopicArn> \
+  --protocol sms \
+  --notification-endpoint +1234567890
+
+# Subscribe HTTPS webhook
+aws sns subscribe \
+  --topic-arn <DeviceAlertTopicArn> \
+  --protocol https \
+  --notification-endpoint https://your-webhook.com/iot-alerts
+```
+
+Alert types automatically detected:
+- **LOW_BATTERY**: Battery < 20% (Warning), < 10% (Critical)
+- **TEMPERATURE_ALERT**: Temperature out of safe range
+- **DISCONNECTED**: Device connectivity issues
+- **DEVICE_ERROR**: Device reported errors
+- **HIGH_MEMORY_USAGE**: Memory usage > 90%
+- **HIGH_CPU_USAGE**: CPU usage > 90%
+- **LOW_DISK_SPACE**: Disk usage > 90%
+
 ### AWS CLI Commands
 
 #### Update Shadow
@@ -302,8 +481,15 @@ serverless logs -f preProvisioningHook --stage dev --tail
 # Shadow update handler logs
 serverless logs -f shadowUpdateHandler --stage dev --tail
 
+# Fleet analytics aggregator logs
+serverless logs -f fleetAnalyticsAggregator --stage dev --tail
+
+# Device alert handler logs
+serverless logs -f deviceAlertHandler --stage dev --tail
+
 # API logs
 serverless logs -f createDevice --stage dev --tail
+serverless logs -f getFleetAnalytics --stage dev --tail
 ```
 
 ### DynamoDB Tables
@@ -323,6 +509,18 @@ aws dynamodb query \
   --expression-attribute-values '{":tn":{"S":"Sensor-ABC12345678"}}' \
   --scan-index-forward false \
   --limit 10
+```
+
+Query fleet analytics:
+
+```bash
+aws dynamodb scan --table-name iot-shadow-management-fleet-analytics-dev
+```
+
+Query Greengrass deployments:
+
+```bash
+aws dynamodb scan --table-name iot-shadow-management-greengrass-deployments-dev
 ```
 
 ### IoT Core Metrics

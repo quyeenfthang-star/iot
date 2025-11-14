@@ -54,6 +54,9 @@ Save these values:
 |--------|---------|-------|
 | DeviceTableName | iot-shadow-management-devices-dev | DynamoDB device registry |
 | ShadowHistoryTableName | iot-shadow-management-shadow-history-dev | DynamoDB shadow history |
+| FleetAnalyticsTableName | iot-shadow-management-fleet-analytics-dev | DynamoDB fleet analytics |
+| GreengrassDeploymentsTableName | iot-shadow-management-greengrass-deployments-dev | DynamoDB Greengrass deployments |
+| DeviceAlertTopicArn | arn:aws:sns:us-east-1:...:iot-shadow-management-device-alerts-dev | SNS alert topic |
 | ProvisioningTemplateName | iot-shadow-management-template-dev | Fleet provisioning |
 | ClaimPolicyName | iot-shadow-management-claim-policy-dev | Claim certificates |
 | DevicePolicyName | iot-shadow-management-device-policy-dev | Device certificates |
@@ -114,6 +117,8 @@ Expected tables:
 - `iot-shadow-management-devices-dev`
 - `iot-shadow-management-shadow-history-dev`
 - `iot-shadow-management-provisioning-logs-dev`
+- `iot-shadow-management-fleet-analytics-dev`
+- `iot-shadow-management-greengrass-deployments-dev`
 
 ### Verify Lambda Functions
 
@@ -121,17 +126,25 @@ Expected tables:
 aws lambda list-functions --region $REGION | grep iot-shadow-management
 ```
 
-Expected functions:
+Expected functions (18 total):
 - `iot-shadow-management-dev-preProvisioningHook`
 - `iot-shadow-management-dev-postProvisioningHook`
 - `iot-shadow-management-dev-shadowUpdateHandler`
 - `iot-shadow-management-dev-shadowDeltaHandler`
+- `iot-shadow-management-dev-fleetAnalyticsAggregator`
+- `iot-shadow-management-dev-deviceAlertHandler`
 - `iot-shadow-management-dev-createDevice`
 - `iot-shadow-management-dev-getDevice`
 - `iot-shadow-management-dev-listDevices`
 - `iot-shadow-management-dev-updateDeviceShadow`
 - `iot-shadow-management-dev-getDeviceShadow`
 - `iot-shadow-management-dev-getShadowHistory`
+- `iot-shadow-management-dev-getFleetAnalytics`
+- `iot-shadow-management-dev-getDeviceMetrics`
+- `iot-shadow-management-dev-createGreengrassDeployment`
+- `iot-shadow-management-dev-getGreengrassDeployment`
+- `iot-shadow-management-dev-listGreengrassDeployments`
+- `iot-shadow-management-dev-cancelGreengrassDeployment`
 
 ### Verify IoT Resources
 
@@ -222,7 +235,32 @@ Device provisioned successfully!
 ...
 ```
 
-## Step 10: Monitor Deployment
+## Step 10: Configure SNS Alert Subscriptions
+
+Subscribe to device alerts:
+
+```bash
+# Get the SNS topic ARN from deployment outputs
+SNS_TOPIC_ARN=$(serverless info --stage dev --region $REGION | grep "DeviceAlertTopicArn" | awk '{print $2}')
+
+# Subscribe email to alerts
+aws sns subscribe \
+  --topic-arn $SNS_TOPIC_ARN \
+  --protocol email \
+  --notification-endpoint your-email@example.com \
+  --region $REGION
+
+echo "✓ Email subscription created. Check your email to confirm subscription."
+
+# Optional: Subscribe SMS
+aws sns subscribe \
+  --topic-arn $SNS_TOPIC_ARN \
+  --protocol sms \
+  --notification-endpoint +1234567890 \
+  --region $REGION
+```
+
+## Step 11: Monitor Deployment
 
 ### CloudWatch Logs
 
@@ -255,8 +293,10 @@ Check data in:
 
 ## Deployment Validation Checklist
 
-- [ ] All Lambda functions deployed successfully
-- [ ] All DynamoDB tables created
+- [ ] All Lambda functions deployed successfully (18 functions)
+- [ ] All DynamoDB tables created (5 tables)
+- [ ] DynamoDB streams enabled on DeviceRegistry and ShadowHistory
+- [ ] SNS topic created for device alerts
 - [ ] IoT provisioning template created
 - [ ] IoT policies created (claim and device)
 - [ ] Thing types created (Sensor, Gateway, Actuator)
@@ -266,6 +306,9 @@ Check data in:
 - [ ] Device successfully provisioned
 - [ ] Shadow updates working
 - [ ] API endpoints returning expected responses
+- [ ] Fleet analytics endpoints accessible
+- [ ] Greengrass deployment endpoints accessible
+- [ ] SNS alert subscriptions configured and confirmed
 
 ## Rollback
 
