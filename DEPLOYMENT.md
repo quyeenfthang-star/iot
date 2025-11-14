@@ -126,7 +126,7 @@ Expected tables:
 aws lambda list-functions --region $REGION | grep iot-shadow-management
 ```
 
-Expected functions (18 total):
+Expected functions (27 total):
 - `iot-shadow-management-dev-preProvisioningHook`
 - `iot-shadow-management-dev-postProvisioningHook`
 - `iot-shadow-management-dev-shadowUpdateHandler`
@@ -145,6 +145,15 @@ Expected functions (18 total):
 - `iot-shadow-management-dev-getGreengrassDeployment`
 - `iot-shadow-management-dev-listGreengrassDeployments`
 - `iot-shadow-management-dev-cancelGreengrassDeployment`
+- `iot-shadow-management-dev-createThingType`
+- `iot-shadow-management-dev-listThingTypes`
+- `iot-shadow-management-dev-getThingType`
+- `iot-shadow-management-dev-deleteThingType`
+- `iot-shadow-management-dev-createThingGroup`
+- `iot-shadow-management-dev-listThingGroups`
+- `iot-shadow-management-dev-getThingGroup`
+- `iot-shadow-management-dev-deleteThingGroup`
+- `iot-shadow-management-dev-addThingToGroup`
 
 ### Verify IoT Resources
 
@@ -293,14 +302,14 @@ Check data in:
 
 ## Deployment Validation Checklist
 
-- [ ] All Lambda functions deployed successfully (18 functions)
+- [ ] All Lambda functions deployed successfully (27 functions)
 - [ ] All DynamoDB tables created (5 tables)
 - [ ] DynamoDB streams enabled on DeviceRegistry and ShadowHistory
 - [ ] SNS topic created for device alerts
 - [ ] IoT provisioning template created
 - [ ] IoT policies created (claim and device)
-- [ ] Thing types created (Sensor, Gateway, Actuator)
-- [ ] Thing groups created (production)
+- [ ] Thing types can be created dynamically via API
+- [ ] Thing groups can be created dynamically via API
 - [ ] API Gateway endpoint accessible
 - [ ] Claim certificate created and policy attached
 - [ ] Device successfully provisioned
@@ -308,6 +317,8 @@ Check data in:
 - [ ] API endpoints returning expected responses
 - [ ] Fleet analytics endpoints accessible
 - [ ] Greengrass deployment endpoints accessible
+- [ ] Thing type management endpoints accessible
+- [ ] Thing group management endpoints accessible
 - [ ] SNS alert subscriptions configured and confirmed
 
 ## Rollback

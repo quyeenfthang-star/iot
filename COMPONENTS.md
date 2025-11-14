@@ -171,6 +171,54 @@ This document outlines the components required for managing devices using AWS Io
    - Supports rollback policies and failure handling
    - Timeout and retry configuration
 
+### Dynamic Thing Type Management Components
+
+1. **Thing Type Management API**
+   - POST /thing-types - Create new thing type dynamically
+   - GET /thing-types - List all thing types with pagination
+   - GET /thing-types/{name} - Get thing type details
+   - DELETE /thing-types/{name} - Delete thing type (with deprecation)
+
+2. **Thing Type Features**
+   - Custom searchable attributes for device categorization
+   - Tag support for cost allocation and organization
+   - Automatic deprecation before deletion
+   - Name format validation and error handling
+
+3. **Use Cases**
+   - Multi-tenant environments with custom device types
+   - Dynamic device categorization without infrastructure changes
+   - Flexible attribute schemas per device category
+   - On-demand type creation for new device models
+
+### Dynamic Thing Group Management Components
+
+1. **Thing Group Management API**
+   - POST /thing-groups - Create new thing group dynamically
+   - GET /thing-groups - List thing groups with filtering
+   - GET /thing-groups/{name} - Get thing group details
+   - DELETE /thing-groups/{name} - Delete thing group (with safety checks)
+   - PUT/DELETE /thing-groups/{groupName}/things/{thingName} - Manage membership
+
+2. **Thing Group Features**
+   - Hierarchical group structure (parent-child relationships)
+   - Attribute payloads for group metadata
+   - Safety checks before deletion (empty group validation)
+   - Force delete option for emergency scenarios
+   - Override dynamic group assignments
+
+3. **Hierarchical Organization**
+   - Multi-level group nesting (e.g., production → us-east-1 → sensors)
+   - Attribute inheritance from parent groups
+   - Policy application at group level
+   - Bulk operations on group members
+
+4. **Use Cases**
+   - Geographic organization (region → zone → building)
+   - Environment-based grouping (prod → staging → dev)
+   - Functional grouping (sensors → gateways → actuators)
+   - Custom organizational hierarchies without redeployment
+
 ## Data Flow
 
 ```

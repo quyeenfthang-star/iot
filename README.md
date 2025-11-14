@@ -44,6 +44,17 @@ iot/
 │       │   ├── getDeployment.js          # Get deployment status
 │       │   ├── listDeployments.js        # List deployments
 │       │   └── cancelDeployment.js       # Cancel deployments
+│       ├── thing-types/
+│       │   ├── createThingType.js        # Create thing type dynamically
+│       │   ├── listThingTypes.js         # List thing types
+│       │   ├── getThingType.js           # Get thing type details
+│       │   └── deleteThingType.js        # Delete thing type
+│       ├── thing-groups/
+│       │   ├── createThingGroup.js       # Create thing group dynamically
+│       │   ├── listThingGroups.js        # List thing groups
+│       │   ├── getThingGroup.js          # Get thing group details
+│       │   ├── deleteThingGroup.js       # Delete thing group
+│       │   └── addThingToGroup.js        # Manage thing group membership
 │       └── api/
 │           ├── createDevice.js           # Create device manually
 │           ├── getDevice.js              # Get device details
