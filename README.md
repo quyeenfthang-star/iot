@@ -1,6 +1,6 @@
 # AWS IoT Shadow Management with Fleet Provisioning
 
-A complete serverless solution for managing IoT devices using AWS IoT Device Shadows and Fleet Provisioning.
+A complete serverless solution for managing IoT devices using AWS IoT Device Shadows, Fleet Provisioning, Fleet Analytics, and AWS IoT Greengrass.
 
 ## Overview
 
@@ -9,6 +9,8 @@ This project provides a production-ready infrastructure for:
 - **Fleet Provisioning**: Automatically register and provision IoT devices
 - **Shadow Management**: Synchronize device state between cloud and devices
 - **Device Management**: REST API for device CRUD operations
+- **Fleet Analytics**: Real-time analytics and insights into fleet health and performance
+- **Greengrass Deployment Manager**: Manage AWS IoT Greengrass V2 deployments and components
 - **Telemetry & History**: Track device shadow updates over time
 - **Security**: Certificate-based authentication and fine-grained policies
 
@@ -98,6 +100,7 @@ After deployment, you'll see outputs including:
 
 - **DeviceTableName**: DynamoDB table for device registry
 - **ShadowHistoryTableName**: DynamoDB table for shadow history
+- **DeploymentsTableName**: DynamoDB table for Greengrass deployments
 - **ProvisioningTemplateName**: Fleet provisioning template name
 - **ClaimPolicyName**: Policy name for claim certificates
 - **DevicePolicyName**: Policy name for device certificates
@@ -258,6 +261,177 @@ curl https://<api-endpoint>/dev/devices/<deviceId>/shadow/history
 curl "https://<api-endpoint>/dev/devices/<deviceId>/shadow/history?startTime=1234567890000&endTime=1234567900000&limit=50"
 ```
 
+### Fleet Analytics API
+
+#### Get Fleet Health
+
+```bash
+# Get fleet health metrics
+curl https://<api-endpoint>/dev/analytics/fleet/health
+
+# With custom time range (hours)
+curl "https://<api-endpoint>/dev/analytics/fleet/health?timeRange=24"
+```
+
+#### Get Device Metrics
+
+```bash
+# Get fleet-wide metrics
+curl https://<api-endpoint>/dev/analytics/fleet/metrics
+
+# Get specific device metrics
+curl https://<api-endpoint>/dev/analytics/devices/<deviceId>/metrics
+
+# Get specific metric with time range
+curl "https://<api-endpoint>/dev/analytics/devices/<deviceId>/metrics?metric=batteryLevel&hours=24"
+
+# With custom time range
+curl "https://<api-endpoint>/dev/analytics/fleet/metrics?startTime=1234567890000&endTime=1234567900000"
+```
+
+#### Get Fleet Trends
+
+```bash
+# Get all trends (7 days by default)
+curl https://<api-endpoint>/dev/analytics/fleet/trends
+
+# Get specific trend type
+curl "https://<api-endpoint>/dev/analytics/fleet/trends?type=growth&days=30"
+
+# With custom bucket size
+curl "https://<api-endpoint>/dev/analytics/fleet/trends?type=connection&days=7&bucket=hour"
+```
+
+### Greengrass Deployment Manager API
+
+#### Create Deployment
+
+```bash
+curl -X POST https://<api-endpoint>/dev/greengrass/deployments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetArn": "arn:aws:iot:us-east-1:123456789012:thinggroup/production",
+    "deploymentName": "fleet-update-v2.0",
+    "components": {
+      "aws.greengrass.Cli": {
+        "version": "2.11.0"
+      },
+      "com.example.MyComponent": {
+        "version": "1.0.0",
+        "configuration": {
+          "accessControl": {
+            "aws.greengrass.ipc.pubsub": {
+              "com.example.MyComponent:pubsub:1": {
+                "policyDescription": "Allows publishing to telemetry topic",
+                "operations": ["aws.greengrass#PublishToTopic"],
+                "resources": ["telemetry/data"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "deploymentPolicies": {
+      "componentUpdatePolicy": {
+        "action": "NOTIFY_COMPONENTS",
+        "timeoutInSeconds": 60
+      },
+      "failureHandlingPolicy": "ROLLBACK"
+    },
+    "tags": {
+      "Environment": "production",
+      "Version": "2.0"
+    }
+  }'
+```
+
+#### List Deployments
+
+```bash
+# List all deployments
+curl https://<api-endpoint>/dev/greengrass/deployments
+
+# Filter by status
+curl "https://<api-endpoint>/dev/greengrass/deployments?status=ACTIVE"
+
+# Filter by target ARN
+curl "https://<api-endpoint>/dev/greengrass/deployments?targetArn=arn:aws:iot:us-east-1:123456789012:thinggroup/production"
+
+# With statistics
+curl "https://<api-endpoint>/dev/greengrass/deployments?includeStats=true"
+```
+
+#### Get Deployment Status
+
+```bash
+curl https://<api-endpoint>/dev/greengrass/deployments/<deploymentId>
+```
+
+#### Cancel Deployment
+
+```bash
+curl -X POST https://<api-endpoint>/dev/greengrass/deployments/<deploymentId>/cancel \
+  -H "Content-Type: application/json" \
+  -d '{
+    "canceledBy": "admin@example.com"
+  }'
+```
+
+#### List Components
+
+```bash
+# List private components
+curl https://<api-endpoint>/dev/greengrass/components
+
+# List public components
+curl "https://<api-endpoint>/dev/greengrass/components?scope=PUBLIC"
+```
+
+#### Get Component Details
+
+```bash
+curl https://<api-endpoint>/dev/greengrass/components/<componentName>
+```
+
+#### Create Custom Component
+
+```bash
+curl -X POST https://<api-endpoint>/dev/greengrass/components \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipe": {
+      "RecipeFormatVersion": "2020-01-25",
+      "ComponentName": "com.example.MyComponent",
+      "ComponentVersion": "1.0.0",
+      "ComponentDescription": "My custom Greengrass component",
+      "ComponentPublisher": "Example Corp",
+      "ComponentConfiguration": {
+        "DefaultConfiguration": {
+          "reportInterval": 60
+        }
+      },
+      "Manifests": [
+        {
+          "Platform": {
+            "os": "linux"
+          },
+          "Lifecycle": {
+            "Run": "python3 {artifacts:path}/main.py"
+          },
+          "Artifacts": [
+            {
+              "URI": "s3://my-bucket/artifacts/main.py"
+            }
+          ]
+        }
+      ]
+    },
+    "tags": {
+      "Version": "1.0.0"
+    }
+  }'
+```
+
 ### AWS CLI Commands
 
 #### Update Shadow
@@ -304,6 +478,12 @@ serverless logs -f shadowUpdateHandler --stage dev --tail
 
 # API logs
 serverless logs -f createDevice --stage dev --tail
+
+# Fleet analytics logs
+serverless logs -f getFleetHealth --stage dev --tail
+
+# Greengrass deployment logs
+serverless logs -f createDeployment --stage dev --tail
 ```
 
 ### DynamoDB Tables
@@ -323,6 +503,12 @@ aws dynamodb query \
   --expression-attribute-values '{":tn":{"S":"Sensor-ABC12345678"}}' \
   --scan-index-forward false \
   --limit 10
+```
+
+Query Greengrass deployments:
+
+```bash
+aws dynamodb scan --table-name iot-shadow-management-deployments-dev
 ```
 
 ### IoT Core Metrics

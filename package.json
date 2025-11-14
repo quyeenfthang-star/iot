@@ -1,7 +1,7 @@
 {
   "name": "iot-shadow-management",
   "version": "1.0.0",
-  "description": "AWS IoT Shadow Management with Fleet Provisioning",
+  "description": "AWS IoT Shadow Management with Fleet Provisioning, Fleet Analytics, and Greengrass Deployment Manager",
   "main": "index.js",
   "scripts": {
     "deploy": "serverless deploy",
@@ -19,12 +19,16 @@
     "iot",
     "shadow",
     "fleet-provisioning",
+    "greengrass",
+    "analytics",
+    "fleet-management",
     "serverless"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.450.0",
+    "@aws-sdk/client-greengrassv2": "^3.450.0",
     "@aws-sdk/client-iot": "^3.450.0",
     "@aws-sdk/client-iot-data-plane": "^3.450.0",
     "@aws-sdk/lib-dynamodb": "^3.450.0",

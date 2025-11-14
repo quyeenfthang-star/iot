@@ -17,6 +17,7 @@ provider:
     DEVICE_TABLE: ${self:custom.deviceTable}
     SHADOW_HISTORY_TABLE: ${self:custom.shadowHistoryTable}
     PROVISIONING_LOGS_TABLE: ${self:custom.provisioningLogsTable}
+    DEPLOYMENTS_TABLE: ${self:custom.deploymentsTable}
     IOT_ENDPOINT: !GetAtt IotEndpoint.endpointAddress
 
   # IAM Role for Lambda functions
@@ -36,8 +37,10 @@ provider:
             - !GetAtt DeviceRegistryTable.Arn
             - !GetAtt ShadowHistoryTable.Arn
             - !GetAtt ProvisioningLogsTable.Arn
+            - !GetAtt DeploymentsTable.Arn
             - !Sub '${DeviceRegistryTable.Arn}/index/*'
             - !Sub '${ShadowHistoryTable.Arn}/index/*'
+            - !Sub '${DeploymentsTable.Arn}/index/*'
 
         # IoT permissions
         - Effect: Allow
@@ -60,6 +63,23 @@ provider:
             - iot:DetachPolicy
             - iot:CreatePolicy
             - iot:CreateCertificateFromCsr
+            - iot:DescribeJob
+            - iot:CancelJob
+          Resource: '*'
+
+        # Greengrass V2 permissions
+        - Effect: Allow
+          Action:
+            - greengrass:CreateDeployment
+            - greengrass:GetDeployment
+            - greengrass:ListDeployments
+            - greengrass:CancelDeployment
+            - greengrass:ListComponents
+            - greengrass:DescribeComponent
+            - greengrass:ListComponentVersions
+            - greengrass:CreateComponentVersion
+            - greengrass:GetComponent
+            - greengrass:GetComponentVersionArtifact
           Resource: '*'
 
         # CloudWatch Logs
@@ -75,6 +95,7 @@ custom:
   deviceTable: ${self:service}-devices-${self:provider.stage}
   shadowHistoryTable: ${self:service}-shadow-history-${self:provider.stage}
   provisioningLogsTable: ${self:service}-provisioning-logs-${self:provider.stage}
+  deploymentsTable: ${self:service}-deployments-${self:provider.stage}
 
   # Fleet Provisioning
   provisioningTemplateName: ${self:service}-template-${self:provider.stage}
@@ -177,6 +198,96 @@ functions:
           method: get
           cors: true
 
+  # Fleet Analytics API
+  getFleetHealth:
+    handler: src/handlers/analytics/getFleetHealth.handler
+    description: Gets fleet health analytics
+    timeout: 60
+    events:
+      - http:
+          path: /analytics/fleet/health
+          method: get
+          cors: true
+
+  getDeviceMetrics:
+    handler: src/handlers/analytics/getDeviceMetrics.handler
+    description: Gets device or fleet metrics analytics
+    timeout: 60
+    events:
+      - http:
+          path: /analytics/fleet/metrics
+          method: get
+          cors: true
+      - http:
+          path: /analytics/devices/{deviceId}/metrics
+          method: get
+          cors: true
+
+  getFleetTrends:
+    handler: src/handlers/analytics/getFleetTrends.handler
+    description: Gets fleet trend analytics
+    timeout: 60
+    events:
+      - http:
+          path: /analytics/fleet/trends
+          method: get
+          cors: true
+
+  # Greengrass Deployment Manager API
+  createDeployment:
+    handler: src/handlers/greengrass/createDeployment.handler
+    description: Creates a new Greengrass deployment
+    timeout: 60
+    events:
+      - http:
+          path: /greengrass/deployments
+          method: post
+          cors: true
+
+  getDeployment:
+    handler: src/handlers/greengrass/getDeployment.handler
+    description: Gets Greengrass deployment status
+    events:
+      - http:
+          path: /greengrass/deployments/{deploymentId}
+          method: get
+          cors: true
+
+  listDeployments:
+    handler: src/handlers/greengrass/listDeployments.handler
+    description: Lists Greengrass deployments
+    events:
+      - http:
+          path: /greengrass/deployments
+          method: get
+          cors: true
+
+  cancelDeployment:
+    handler: src/handlers/greengrass/cancelDeployment.handler
+    description: Cancels a Greengrass deployment
+    events:
+      - http:
+          path: /greengrass/deployments/{deploymentId}/cancel
+          method: post
+          cors: true
+
+  manageComponents:
+    handler: src/handlers/greengrass/manageComponents.handler
+    description: Manages Greengrass components
+    events:
+      - http:
+          path: /greengrass/components
+          method: get
+          cors: true
+      - http:
+          path: /greengrass/components
+          method: post
+          cors: true
+      - http:
+          path: /greengrass/components/{componentName}
+          method: get
+          cors: true
+
 resources:
   Resources:
     # DynamoDB Tables
@@ -269,6 +380,36 @@ resources:
         TimeToLiveSpecification:
           AttributeName: ttl
           Enabled: true
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    DeploymentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.deploymentsTable}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: deploymentId
+            AttributeType: S
+          - AttributeName: targetArn
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: N
+        KeySchema:
+          - AttributeName: deploymentId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: targetArn-index
+            KeySchema:
+              - AttributeName: targetArn
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
         Tags:
           - Key: Service
             Value: ${self:service}
@@ -588,6 +729,12 @@ resources:
       Value: !Sub 'https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${self:provider.stage}'
       Export:
         Name: ${self:service}-${self:provider.stage}-ApiEndpoint
+
+    DeploymentsTableName:
+      Description: Greengrass Deployments DynamoDB Table
+      Value: !Ref DeploymentsTable
+      Export:
+        Name: ${self:service}-${self:provider.stage}-DeploymentsTable
 
 plugins:
   - serverless-offline
